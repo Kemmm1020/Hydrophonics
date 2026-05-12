@@ -55,8 +55,8 @@
     <section class="card span-3"><div class="metric-title">Water Level</div><div class="value blue" id="waterLevel">0</div><div class="unit">reservoir level %</div></section>
     <section class="card span-3"><div class="metric-title">Full LED Brightness</div><div class="value warn" id="fullBrightnessReadout">255</div><div class="unit">manual PWM value / 255</div></section>
     <section class="card span-3"><div class="metric-title">Target DLI</div><div class="value blue">18.00</div><div class="unit">mol/m2/day</div></section>
-    <section class="card span-4"><h3>Hybrid System</h3><div class="metric-title">Fiber Light + Hybrid LED DLI Today</div><div class="value good" id="dliHybrid">0.00</div><div class="unit">mol/m2/day</div><div class="progress"><div class="bar" id="hybridBar"></div></div><p class="status-line" id="hybridStatus">Calculating...</p></section>
-    <section class="card span-4"><h3>Full LED System</h3><div class="metric-title">LED-only DLI Today</div><div class="value blue" id="dliFull">0.00</div><div class="unit">mol/m2/day</div><div class="progress"><div class="bar" id="fullBar"></div></div><p class="status-line" id="fullStatus">Calculating...</p></section>
+    <section class="card span-4"><h3>Hybrid System</h3><div class="metric-title">Fiber Light + Hybrid LED DLI Today</div><div class="value good" id="dliHybrid">0.00</div><div class="unit">mol/m2/day</div><div class="progress"><div class="bar" id="hybridBar"></div></div><p class="status-line">Hybrid LED Status: <b id="hybridLedStatus" class="bad">OFF</b></p><p class="status-line" id="hybridStatus">Calculating...</p></section>
+    <section class="card span-4"><h3>Full LED System</h3><div class="metric-title">LED-only DLI Today</div><div class="value blue" id="dliFull">0.00</div><div class="unit">mol/m2/day</div><div class="progress"><div class="bar" id="fullBar"></div></div><p class="status-line">Full LED Status: <b id="fullLedStatus" class="bad">OFF</b></p><p class="status-line" id="fullStatus">Calculating...</p></section>
     <section class="card span-4"><h3>LED Energy</h3><div class="metric-title">Estimated Hybrid LED Energy Today</div><div class="value warn" id="kwhHybrid">0.000</div><div class="unit">kWh</div><div class="metric-title" style="margin-top:14px">Estimated Full LED Energy Today</div><div class="value blue" id="kwhFullMain">0.000</div><div class="unit">kWh</div><p class="status-line">LED-only energy today: <b id="kwhFull">0.000</b> kWh</p><p class="status-line">Hybrid LED DLI supplied: <b id="hybridLedDli">0.00</b> mol/m2/day</p><p class="status-line">Full LED DLI supplied: <b id="fullLedDli">0.00</b> mol/m2/day</p><p class="status-line">Additional DLI needed to reach target: <b id="dliNeeded">0.00</b> mol/m2/day</p></section>
     <section class="card span-8"><h3>Today's DLI Curve</h3><canvas id="dliChart" height="120"></canvas><p class="small" id="chartNotice"></p></section>
     <section class="card span-4"><h3>Full LED Manual Control</h3><label>Brightness</label><input id="fullLedBrightnessControl" type="range" min="0" max="255" value="255"><p class="status-line">Brightness value: <b id="fullLedBrightnessText">255</b> / 255</p><div class="row"><div><label>ON Hour</label><input id="fullLedOnHour" type="number" min="0" max="23" value="7"></div><div><label>OFF Hour</label><input id="fullLedOffHour" type="number" min="0" max="23" value="21"></div></div><button id="saveFullLedBtn">Apply Full LED Settings</button><p class="status-line" id="fullLedControlStatus">Full LED settings ready.</p></section>
@@ -354,21 +354,34 @@
           var hybridLedPpfd = 0;
           var fullLedPpfd = 0;
 
-          if (isWithinWindow(d, HYBRID_ON_HOUR, HYBRID_OFF_HOUR)) {
+          if (hybridDli < TARGET_DLI && isWithinWindow(d, HYBRID_ON_HOUR, HYBRID_OFF_HOUR)) {
             var deficit = Math.max(0, luxSetpoint - fiberLux);
             hybridFraction = luxSetpoint > 0 ? clamp(deficit / luxSetpoint, 0, 1) : 0;
             hybridLedPpfd = hybridLedMaxPpfd * hybridFraction;
           } else {
             hybridFraction = 0;
+            hybridLedPpfd = 0;
           }
 
-          if (isWithinWindow(d, fullLedOnHourValue, fullLedOffHourValue)) fullLedPpfd = fullLedMaxPpfd * fullFraction;
+          if (fullDli < TARGET_DLI && isWithinWindow(d, fullLedOnHourValue, fullLedOffHourValue)) fullLedPpfd = fullLedMaxPpfd * fullFraction;
+          else fullLedPpfd = 0;
 
-          fiberDli += fiberPpfd * dtSec / 1000000;
-          hybridDli += (fiberPpfd + hybridLedPpfd) * dtSec / 1000000;
-          fullDli += fullLedPpfd * dtSec / 1000000;
-          hybridLedDli += hybridLedPpfd * dtSec / 1000000;
-          fullLedDli += fullLedPpfd * dtSec / 1000000;
+          var fiberStepDli = fiberPpfd * dtSec / 1000000;
+          var hybridLedStepDli = hybridLedPpfd * dtSec / 1000000;
+          var fullLedStepDli = fullLedPpfd * dtSec / 1000000;
+
+          fiberDli += fiberStepDli;
+
+          var hybridRemaining = Math.max(0, TARGET_DLI - hybridDli);
+          var acceptedFiberForHybrid = Math.min(fiberStepDli, hybridRemaining);
+          var acceptedHybridLedDli = Math.min(hybridLedStepDli, Math.max(0, hybridRemaining - acceptedFiberForHybrid));
+          hybridDli += acceptedFiberForHybrid + acceptedHybridLedDli;
+          hybridLedDli += acceptedHybridLedDli;
+
+          var fullRemaining = Math.max(0, TARGET_DLI - fullDli);
+          var acceptedFullLedDli = Math.min(fullLedStepDli, fullRemaining);
+          fullDli += acceptedFullLedDli;
+          fullLedDli += acceptedFullLedDli;
 
           if (d.getMinutes() === 0 || t + dtMs > now.getTime()) {
             labels.push(d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
@@ -387,8 +400,16 @@
 
         var liveFiberLux = Math.max(0, liveRadiation * 120 * fiberEfficiency * calibration.fiberLuxMultiplier + calibration.fiberLuxOffset);
         var liveHybridFraction = 0;
-        if (isWithinWindow(now, HYBRID_ON_HOUR, HYBRID_OFF_HOUR)) {
+        var liveHybridLedOn = false;
+        var liveFullLedOn = false;
+
+        if (hybridDli < TARGET_DLI && isWithinWindow(now, HYBRID_ON_HOUR, HYBRID_OFF_HOUR)) {
           liveHybridFraction = luxSetpoint > 0 ? clamp((luxSetpoint - liveFiberLux) / luxSetpoint, 0, 1) : 0;
+          liveHybridLedOn = liveHybridFraction > 0;
+        }
+
+        if (fullDli < TARGET_DLI && isWithinWindow(now, fullLedOnHourValue, fullLedOffHourValue) && fullLedBrightnessValue > 0) {
+          liveFullLedOn = true;
         }
 
         return {
@@ -402,6 +423,8 @@
           remainingFiberDli: remainingFiberDli,
           dliStillNeeded: Math.max(0, TARGET_DLI - hybridDli),
           currentHybridFraction: liveHybridFraction,
+          hybridLedOn: liveHybridLedOn,
+          fullLedOn: liveFullLedOn,
           chart: { labels: labels, fiberSeries: fiberSeries, hybridSeries: hybridSeries, fullSeries: fullSeries }
         };
       }
@@ -447,6 +470,10 @@
         setText("fiberRemaining", fmt(sim.remainingFiberDli, 2));
         setText("dliNeeded", fmt(sim.dliStillNeeded, 2));
         setText("hybridPwm", String(Math.round(sim.currentHybridFraction * 255)));
+        setText("hybridLedStatus", sim.hybridLedOn ? "ON" : "OFF");
+        setText("fullLedStatus", sim.fullLedOn ? "ON" : "OFF");
+        el("hybridLedStatus").className = sim.hybridLedOn ? "good" : "bad";
+        el("fullLedStatus").className = sim.fullLedOn ? "good" : "bad";
         var hp = clamp(sim.hybridDli / TARGET_DLI * 100, 0, 100);
         var fp = clamp(sim.fullDli / TARGET_DLI * 100, 0, 100);
         el("hybridBar").style.width = hp + "%";
@@ -488,7 +515,6 @@
         }
       }
 
-      
       boot();
     });
   </script>
