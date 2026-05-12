@@ -124,6 +124,18 @@
         return isFinite(saved) ? saved : fallback;
       }
 
+      function loadPositiveNumber(key, fallback) {
+        var saved = Number(localStorage.getItem(key));
+        if (!isFinite(saved) || saved <= 0) return fallback;
+        return saved;
+      }
+
+      function safePositive(value, fallback) {
+        var n = Number(value);
+        if (!isFinite(n) || n <= 0) return fallback;
+        return n;
+      }
+
       function setInput(id, value) { var input = el(id); if (input) input.value = value; }
 
       function showPage(pageId) {
@@ -139,14 +151,14 @@
       }
 
       function loadCalibration() {
-        calibration.fiberLuxMultiplier = loadNumber("calFiberLux", 1);
-        calibration.fiberPpfdMultiplier = loadNumber("calFiberPpfd", 1);
+        calibration.fiberLuxMultiplier = loadPositiveNumber("calFiberLux", 1);
+        calibration.fiberPpfdMultiplier = loadPositiveNumber("calFiberPpfd", 1);
         calibration.fiberLuxOffset = loadNumber("calFiberLuxOffset", 0);
         calibration.fiberPpfdOffset = loadNumber("calFiberPpfdOffset", 0);
         calibration.phOffset = loadNumber("calPH", 0);
         calibration.waterOffset = loadNumber("calWater", 0);
-        calibration.phMultiplier = loadNumber("calPHMultiplier", 1);
-        calibration.waterMultiplier = loadNumber("calWaterMultiplier", 1);
+        calibration.phMultiplier = loadPositiveNumber("calPHMultiplier", 1);
+        calibration.waterMultiplier = loadPositiveNumber("calWaterMultiplier", 1);
         hybridLedMaxPpfd = loadNumber("calHybridLedMaxPpfd", loadNumber("calLedMaxPpfd", 204.43));
         fullLedMaxPpfd = loadNumber("calFullLedMaxPpfd", loadNumber("calLedMaxPpfd", 204.43));
         ledEnergyAt18Dli = loadNumber("calLedEnergy", 0.332445);
@@ -169,14 +181,14 @@
       }
 
       function saveCalibration() {
-        calibration.fiberLuxMultiplier = Number(el("calFiberLux").value || 1);
-        calibration.fiberPpfdMultiplier = Number(el("calFiberPpfd").value || 1);
+        calibration.fiberLuxMultiplier = safePositive(el("calFiberLux").value, 1);
+        calibration.fiberPpfdMultiplier = safePositive(el("calFiberPpfd").value, 1);
         calibration.fiberLuxOffset = Number(el("calFiberLuxOffset").value || 0);
         calibration.fiberPpfdOffset = Number(el("calFiberPpfdOffset").value || 0);
         calibration.phOffset = Number(el("calPH").value || 0);
         calibration.waterOffset = Number(el("calWater").value || 0);
-        calibration.phMultiplier = Number(el("calPHMultiplier").value || 1);
-        calibration.waterMultiplier = Number(el("calWaterMultiplier").value || 1);
+        calibration.phMultiplier = safePositive(el("calPHMultiplier").value, 1);
+        calibration.waterMultiplier = safePositive(el("calWaterMultiplier").value, 1);
         hybridLedMaxPpfd = Number(el("calHybridLedMaxPpfd").value || 204.43);
         fullLedMaxPpfd = Number(el("calFullLedMaxPpfd").value || 204.43);
         ledEnergyAt18Dli = Number(el("calLedEnergy").value || 0.332445);
@@ -323,8 +335,10 @@
       }
 
       function updateLiveLightCards() {
-        var fiberLux = Math.max(0, liveRadiation * 120 * fiberEfficiency * calibration.fiberLuxMultiplier + calibration.fiberLuxOffset);
-        var fiberPpfd = Math.max(0, liveRadiation * 1.96 * fiberEfficiency * calibration.fiberPpfdMultiplier + calibration.fiberPpfdOffset);
+        var luxMultiplier = safePositive(calibration.fiberLuxMultiplier, 1);
+        var ppfdMultiplier = safePositive(calibration.fiberPpfdMultiplier, 1);
+        var fiberLux = Math.max(0, liveRadiation * 120 * fiberEfficiency * luxMultiplier + calibration.fiberLuxOffset);
+        var fiberPpfd = Math.max(0, liveRadiation * 1.96 * fiberEfficiency * ppfdMultiplier + calibration.fiberPpfdOffset);
         setText("fiberLux", fmt(fiberLux, 0));
         setText("fiberPpfd", fmt(fiberPpfd, 0));
       }
@@ -358,8 +372,10 @@
         for (var t = start.getTime(); t <= now.getTime(); t += dtMs) {
           var d = new Date(t);
           var rad = radiationAt(t);
-          var fiberLux = Math.max(0, rad * 120 * fiberEfficiency * calibration.fiberLuxMultiplier + calibration.fiberLuxOffset);
-          var fiberPpfd = Math.max(0, rad * 1.96 * fiberEfficiency * calibration.fiberPpfdMultiplier + calibration.fiberPpfdOffset);
+          var luxMultiplier = safePositive(calibration.fiberLuxMultiplier, 1);
+          var ppfdMultiplier = safePositive(calibration.fiberPpfdMultiplier, 1);
+          var fiberLux = Math.max(0, rad * 120 * fiberEfficiency * luxMultiplier + calibration.fiberLuxOffset);
+          var fiberPpfd = Math.max(0, rad * 1.96 * fiberEfficiency * ppfdMultiplier + calibration.fiberPpfdOffset);
           luxSum += fiberLux;
           ppfdSum += fiberPpfd;
           sampleCount += 1;
@@ -409,11 +425,13 @@
         var remainingFiberDli = 0;
         for (var rt = now.getTime(); rt <= end.getTime(); rt += dtMs) {
           var r = radiationAt(rt);
-          var ppfd = Math.max(0, r * 1.96 * fiberEfficiency * calibration.fiberPpfdMultiplier + calibration.fiberPpfdOffset);
+          var ppfdMultiplier = safePositive(calibration.fiberPpfdMultiplier, 1);
+          var ppfd = Math.max(0, r * 1.96 * fiberEfficiency * ppfdMultiplier + calibration.fiberPpfdOffset);
           remainingFiberDli += ppfd * dtSec / 1000000;
         }
 
-        var liveFiberLux = Math.max(0, liveRadiation * 120 * fiberEfficiency * calibration.fiberLuxMultiplier + calibration.fiberLuxOffset);
+        var liveLuxMultiplier = safePositive(calibration.fiberLuxMultiplier, 1);
+        var liveFiberLux = Math.max(0, liveRadiation * 120 * fiberEfficiency * liveLuxMultiplier + calibration.fiberLuxOffset);
         var liveHybridFraction = 0;
         var liveHybridLedOn = false;
         var liveFullLedOn = false;
