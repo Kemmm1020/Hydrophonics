@@ -595,6 +595,19 @@
       waterLevel.className = water < 30 ? "value bad" : water < 50 ? "value warn" : "value blue";
     }
 
+    async function tryFetchJson(url) {
+      try {
+        const response = await fetch(url.toString(), { cache: "no-store" });
+        if (!response.ok) return null;
+        const data = await response.json();
+        if (data.error) return null;
+        if (!data.hourly || !Array.isArray(data.hourly.shortwave_radiation)) return null;
+        return data;
+      } catch (err) {
+        return null;
+      }
+    }
+
     async function fetchLightData(force = false) {
       const now = Date.now();
       if (!force && now - state.lastFetchMs < 5 * 60 * 1000) return;
@@ -607,44 +620,33 @@
       satelliteUrl.searchParams.set("longitude", FIXED_LONGITUDE);
       satelliteUrl.searchParams.set("timezone", "auto");
       satelliteUrl.searchParams.set("hourly", "shortwave_radiation");
-      satelliteUrl.searchParams.set("past_days", "1");
-      satelliteUrl.searchParams.set("forecast_days", "1");
-      satelliteUrl.searchParams.set("temporal_resolution", "native");
       satelliteUrl.searchParams.set("models", "satellite_radiation_seamless");
+      satelliteUrl.searchParams.set("temporal_resolution", "native");
 
-      const fallbackUrl = new URL("https://api.open-meteo.com/v1/forecast");
-      fallbackUrl.searchParams.set("latitude", FIXED_LATITUDE);
-      fallbackUrl.searchParams.set("longitude", FIXED_LONGITUDE);
-      fallbackUrl.searchParams.set("timezone", "auto");
-      fallbackUrl.searchParams.set("hourly", "shortwave_radiation");
-      fallbackUrl.searchParams.set("current", "shortwave_radiation");
-      fallbackUrl.searchParams.set("past_days", "1");
-      fallbackUrl.searchParams.set("forecast_days", "1");
+      const forecastUrl = new URL("https://api.open-meteo.com/v1/forecast");
+      forecastUrl.searchParams.set("latitude", FIXED_LATITUDE);
+      forecastUrl.searchParams.set("longitude", FIXED_LONGITUDE);
+      forecastUrl.searchParams.set("timezone", "auto");
+      forecastUrl.searchParams.set("hourly", "shortwave_radiation");
+      forecastUrl.searchParams.set("past_days", "1");
+      forecastUrl.searchParams.set("forecast_days", "2");
 
-      try {
-        let res = await fetch(satelliteUrl.toString());
-        let data = await res.json();
+      let data = await tryFetchJson(satelliteUrl);
+      if (!data) data = await tryFetchJson(forecastUrl);
 
-        if (!res.ok || data.error || !data.hourly || !data.hourly.shortwave_radiation) {
-          res = await fetch(fallbackUrl.toString());
-          data = await res.json();
-        }
-
-        if (!res.ok || data.error || !data.hourly || !data.hourly.shortwave_radiation) {
-          throw new Error("Light data unavailable");
-        }
-
-        state.lightData = data;
-        state.lastFetchMs = now;
-        lastUpdate.textContent = "Last light update: " + new Date().toLocaleTimeString();
-        connectionPill.textContent = "Live light data active";
-        connectionPill.className = "pill";
-        renderAll();
-      } catch (err) {
+      if (!data) {
         connectionPill.textContent = "Light data error";
         connectionPill.className = "pill warn-pill";
-        lastUpdate.textContent = "Unable to update light data. Please check internet connection or run the page through a local server.";
+        lastUpdate.textContent = "Unable to update light data. Check internet connection, then refresh the page.";
+        return;
       }
+
+      state.lightData = data;
+      state.lastFetchMs = now;
+      lastUpdate.textContent = "Last light update: " + new Date().toLocaleTimeString();
+      connectionPill.textContent = "Live light data active";
+      connectionPill.className = "pill";
+      renderAll();
     }
 
     function parseDataTime(t) {
