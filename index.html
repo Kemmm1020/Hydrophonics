@@ -173,6 +173,12 @@
       border-color: rgba(234,179,8,0.18);
     }
 
+    .pill.bad-pill {
+      background: rgba(239,68,68,0.12);
+      color: #fecaca;
+      border-color: rgba(239,68,68,0.20);
+    }
+
     .progress {
       height: 12px;
       background: #0b1221;
@@ -197,15 +203,9 @@
 
     .hidden { display: none; }
 
-    .calibration-grid {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 12px;
-    }
-
     @media (max-width: 920px) {
       .span-8, .span-6, .span-4, .span-3 { grid-column: span 12; }
-      .row, .calibration-grid { grid-template-columns: 1fr; }
+      .row { grid-template-columns: 1fr; }
       .top-actions { justify-content: flex-start; }
       .nav-button { width: 100%; }
     }
@@ -221,8 +221,8 @@
     </div>
     <div class="top-actions">
       <span id="connectionPill" class="pill warn-pill">Light data initializing</span>
-      <button class="nav-button secondary" onclick="showPage('dashboardPage')">Dashboard</button>
-      <button class="nav-button secondary" onclick="showPage('calibrationPage')">Calibration</button>
+      <button class="nav-button secondary" id="dashboardBtn">Dashboard</button>
+      <button class="nav-button secondary" id="calibrationBtn">Calibration</button>
     </div>
   </header>
 
@@ -322,12 +322,13 @@
     <section class="card span-8">
       <h3>Today's DLI Curve</h3>
       <canvas id="dliChart" height="120"></canvas>
+      <p class="small" id="chartNotice"></p>
     </section>
 
     <section class="card span-4">
       <h3>Full LED Manual Control</h3>
       <label>Brightness</label>
-      <input id="fullLedBrightnessControl" type="range" min="0" max="255" value="255" oninput="updateFullLedControlText()" />
+      <input id="fullLedBrightnessControl" type="range" min="0" max="255" value="255" />
       <p class="status-line">Brightness value: <b id="fullLedBrightnessText">255</b> / 255</p>
 
       <div class="row">
@@ -341,7 +342,7 @@
         </div>
       </div>
 
-      <button onclick="saveFullLedControls()">Apply Full LED Settings</button>
+      <button id="saveFullLedBtn">Apply Full LED Settings</button>
       <p class="status-line" id="fullLedControlStatus">Full LED settings ready.</p>
     </section>
   </main>
@@ -355,8 +356,9 @@
     <section class="card span-6">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
         <h3>Light Sensor Calibration</h3>
-        <button title="Fiber PPFD efficiency" onclick="toggleEfficiencyCalibration()" style="width:28px;height:24px;padding:0;margin:0;border-radius:7px;font-size:12px;line-height:1;">%</button>
+        <button id="efficiencyBtn" title="Fiber PPFD efficiency" style="width:28px;height:24px;padding:0;margin:0;border-radius:7px;font-size:12px;line-height:1;">%</button>
       </div>
+
       <div id="efficiencyCalibrationBox" class="hidden">
         <label>Fiber PPFD Efficiency</label>
         <input id="calFiberEfficiency" type="number" min="0" max="1" step="0.001" value="0.250" />
@@ -405,517 +407,562 @@
 
     <section class="card span-6">
       <h3>Calibration Actions</h3>
-      <button onclick="saveCalibration()">Save Calibration</button>
-      <button class="secondary" onclick="resetCalibration()">Reset Calibration</button>
-      <button class="secondary" onclick="showPage('dashboardPage')">Return to Dashboard</button>
+      <button id="saveCalibrationBtn">Save Calibration</button>
+      <button class="secondary" id="resetCalibrationBtn">Reset Calibration</button>
+      <button class="secondary" id="returnDashboardBtn">Return to Dashboard</button>
       <p class="status-line" id="calibrationStatus">Calibration values ready.</p>
     </section>
   </main>
 
   <script>
-    const FIXED_LATITUDE = 9.755446;
-    const FIXED_LONGITUDE = 118.745955;
-    const TARGET_DLI = 18;
-    let fiberEfficiency = 0.25;
-    const LIGHT_ON_HOUR = 7;
-    const LIGHT_OFF_HOUR = 21;
-
-    let luxSetpoint = 10000;
-    let ledMaxPpfd = 204.43;
-    let ledEnergyAt18Dli = 0.332445;
-    let fullLedOnHourValue = 7;
-    let fullLedOffHourValue = 21;
-    let fullLedBrightnessValue = 255;
-
-    const calibration = {
-      fiberLuxMultiplier: 1.000,
-      fiberPpfdMultiplier: 1.000,
-      fiberLuxOffset: 0,
-      fiberPpfdOffset: 0,
-      phOffset: 0,
-      waterOffset: 0,
-      phMultiplier: 1.000,
-      waterMultiplier: 1.000
-    };
-
-    const state = {
-      chart: null,
-      lastFetchMs: 0,
-      lightData: null,
-      sim: null
-    };
-
-    function showPage(pageId) {
-      dashboardPage.classList.toggle("hidden", pageId !== "dashboardPage");
-      calibrationPage.classList.toggle("hidden", pageId !== "calibrationPage");
-      if (pageId === "dashboardPage") renderAll();
-    }
-
-    function clamp(v, min, max) {
-      return Math.min(max, Math.max(min, v));
-    }
-
-    function fmt(n, d = 2) {
-      if (!Number.isFinite(n)) return "0";
-      return Number(n).toLocaleString(undefined, { maximumFractionDigits: d, minimumFractionDigits: d });
-    }
-
-    function updateClock() {
-      const now = new Date();
-      clock.textContent = now.toLocaleTimeString();
-      dateText.textContent = now.toLocaleDateString(undefined, {
-        weekday: "long",
-        year: "numeric",
-        month: "long",
-        day: "numeric"
-      });
-    }
-
-    function loadFullLedControls() {
-      fullLedBrightnessValue = Number(localStorage.getItem("fullLedBrightnessValue") ?? 255);
-      fullLedOnHourValue = Number(localStorage.getItem("fullLedOnHourValue") ?? 7);
-      fullLedOffHourValue = Number(localStorage.getItem("fullLedOffHourValue") ?? 21);
-
-      fullLedBrightnessControl.value = fullLedBrightnessValue;
-      fullLedOnHour.value = fullLedOnHourValue;
-      fullLedOffHour.value = fullLedOffHourValue;
-      updateFullLedControlText();
-    }
-
-    function updateFullLedControlText() {
-      const value = Number(fullLedBrightnessControl.value);
-      fullLedBrightnessText.textContent = value;
-      fullBrightnessReadout.textContent = value;
-    }
-
-    function saveFullLedControls() {
-      fullLedBrightnessValue = clamp(Number(fullLedBrightnessControl.value), 0, 255);
-      fullLedOnHourValue = clamp(Number(fullLedOnHour.value), 0, 23);
-      fullLedOffHourValue = clamp(Number(fullLedOffHour.value), 0, 23);
-
-      localStorage.setItem("fullLedBrightnessValue", fullLedBrightnessValue);
-      localStorage.setItem("fullLedOnHourValue", fullLedOnHourValue);
-      localStorage.setItem("fullLedOffHourValue", fullLedOffHourValue);
-
-      fullLedControlStatus.textContent = "Full LED settings applied: " + fullLedBrightnessValue + " / 255, " + String(fullLedOnHourValue).padStart(2, "0") + ":00 to " + String(fullLedOffHourValue).padStart(2, "0") + ":00.";
-      renderAll();
-    }
-
-    function loadCalibration() {
-      calibration.fiberLuxMultiplier = Number(localStorage.getItem("calFiberLux") ?? 1.000);
-      calibration.fiberPpfdMultiplier = Number(localStorage.getItem("calFiberPpfd") ?? 1.000);
-      calibration.fiberLuxOffset = Number(localStorage.getItem("calFiberLuxOffset") ?? 0);
-      calibration.fiberPpfdOffset = Number(localStorage.getItem("calFiberPpfdOffset") ?? 0);
-      calibration.phOffset = Number(localStorage.getItem("calPH") ?? 0);
-      calibration.waterOffset = Number(localStorage.getItem("calWater") ?? 0);
-      calibration.phMultiplier = Number(localStorage.getItem("calPHMultiplier") ?? 1.000);
-      calibration.waterMultiplier = Number(localStorage.getItem("calWaterMultiplier") ?? 1.000);
-      ledMaxPpfd = Number(localStorage.getItem("calLedMaxPpfd") ?? 204.43);
-      ledEnergyAt18Dli = Number(localStorage.getItem("calLedEnergy") ?? 0.332445);
-      luxSetpoint = Number(localStorage.getItem("calLuxSetpoint") ?? 10000);
-      fiberEfficiency = Number(localStorage.getItem("calFiberEfficiency") ?? 0.25);
-
-      calFiberLux.value = calibration.fiberLuxMultiplier;
-      calFiberPpfd.value = calibration.fiberPpfdMultiplier;
-      calFiberLuxOffset.value = calibration.fiberLuxOffset;
-      calFiberPpfdOffset.value = calibration.fiberPpfdOffset;
-      calPH.value = calibration.phOffset;
-      calWater.value = calibration.waterOffset;
-      calPHMultiplier.value = calibration.phMultiplier;
-      calWaterMultiplier.value = calibration.waterMultiplier;
-      calLedMaxPpfd.value = ledMaxPpfd;
-      calLedEnergy.value = ledEnergyAt18Dli;
-      calLuxSetpoint.value = luxSetpoint;
-      calFiberEfficiency.value = fiberEfficiency;
-    }
-
-    function toggleEfficiencyCalibration() {
-      efficiencyCalibrationBox.classList.toggle("hidden");
-    }
-
-    function saveCalibration() {
-      calibration.fiberLuxMultiplier = Number(calFiberLux.value || 1);
-      calibration.fiberPpfdMultiplier = Number(calFiberPpfd.value || 1);
-      calibration.fiberLuxOffset = Number(calFiberLuxOffset.value || 0);
-      calibration.fiberPpfdOffset = Number(calFiberPpfdOffset.value || 0);
-      calibration.phOffset = Number(calPH.value || 0);
-      calibration.waterOffset = Number(calWater.value || 0);
-      calibration.phMultiplier = Number(calPHMultiplier.value || 1);
-      calibration.waterMultiplier = Number(calWaterMultiplier.value || 1);
-      ledMaxPpfd = Number(calLedMaxPpfd.value || 204.43);
-      ledEnergyAt18Dli = Number(calLedEnergy.value || 0.332445);
-      luxSetpoint = Number(calLuxSetpoint.value || 10000);
-      fiberEfficiency = clamp(Number(calFiberEfficiency.value || 0.25), 0, 1);
-
-      localStorage.setItem("calFiberLux", calibration.fiberLuxMultiplier);
-      localStorage.setItem("calFiberPpfd", calibration.fiberPpfdMultiplier);
-      localStorage.setItem("calFiberLuxOffset", calibration.fiberLuxOffset);
-      localStorage.setItem("calFiberPpfdOffset", calibration.fiberPpfdOffset);
-      localStorage.setItem("calPH", calibration.phOffset);
-      localStorage.setItem("calWater", calibration.waterOffset);
-      localStorage.setItem("calPHMultiplier", calibration.phMultiplier);
-      localStorage.setItem("calWaterMultiplier", calibration.waterMultiplier);
-      localStorage.setItem("calLedMaxPpfd", ledMaxPpfd);
-      localStorage.setItem("calLedEnergy", ledEnergyAt18Dli);
-      localStorage.setItem("calLuxSetpoint", luxSetpoint);
-      localStorage.setItem("calFiberEfficiency", fiberEfficiency);
-
-      calibrationStatus.textContent = "Calibration saved successfully.";
-      renderAll();
-    }
-
-    function resetCalibration() {
-      const keys = [
-        "calFiberLux", "calFiberPpfd", "calFiberLuxOffset", "calFiberPpfdOffset",
-        "calPH", "calWater", "calPHMultiplier", "calWaterMultiplier",
-        "calLedMaxPpfd", "calLedEnergy", "calLuxSetpoint", "calFiberEfficiency"
-      ];
-      keys.forEach(k => localStorage.removeItem(k));
-      loadCalibration();
-      calibrationStatus.textContent = "Calibration reset to default values.";
-      renderAll();
-    }
-
-    function updateWaterAndPH() {
-      const now = new Date();
-      const minutes = now.getHours() * 60 + now.getMinutes();
-      const slowCycle = Math.sin(minutes / 1440 * Math.PI * 2);
-      const fasterCycle = Math.sin(minutes / 180 * Math.PI * 2);
-
-      const phRaw = 6.2 + slowCycle * 0.18 + fasterCycle * 0.04;
-      const waterRaw = 76 - (minutes / 1440) * 8 + Math.sin(minutes / 240 * Math.PI * 2) * 2;
-
-      const ph = clamp((phRaw * calibration.phMultiplier) + calibration.phOffset, 5.0, 8.5);
-      const water = clamp((waterRaw * calibration.waterMultiplier) + calibration.waterOffset, 0, 100);
-
-      phLevel.textContent = fmt(ph, 2);
-      waterLevel.textContent = fmt(water, 0);
-
-      phLevel.className = ph < 5.5 || ph > 6.8 ? "value bad" : "value good";
-      waterLevel.className = water < 30 ? "value bad" : water < 50 ? "value warn" : "value blue";
-    }
-
-    async function tryFetchJson(url) {
-      try {
-        const response = await fetch(url.toString(), { cache: "no-store" });
-        if (!response.ok) return null;
-
-        const data = await response.json();
-        if (data.error) return null;
-        if (!data.hourly || !Array.isArray(data.hourly.shortwave_radiation)) return null;
-
-        const hasUsableLightValue = data.hourly.shortwave_radiation.some(v => Number.isFinite(Number(v)));
-        const hasCurrentLightValue = Number.isFinite(Number(data.current?.shortwave_radiation));
-
-        if (!hasUsableLightValue && !hasCurrentLightValue) return null;
-        return data;
-      } catch (err) {
-        return null;
-      }
-    }
-
-    async function fetchLightData(force = false) {
-      const now = Date.now();
-      if (!force && now - state.lastFetchMs < 5 * 60 * 1000) return;
-
-      connectionPill.textContent = "Updating light data";
-      connectionPill.className = "pill warn-pill";
-
-      const satelliteUrl = new URL("https://satellite-api.open-meteo.com/v1/archive");
-      satelliteUrl.searchParams.set("latitude", FIXED_LATITUDE);
-      satelliteUrl.searchParams.set("longitude", FIXED_LONGITUDE);
-      satelliteUrl.searchParams.set("timezone", "auto");
-      satelliteUrl.searchParams.set("hourly", "shortwave_radiation");
-      satelliteUrl.searchParams.set("models", "satellite_radiation_seamless");
-      satelliteUrl.searchParams.set("temporal_resolution", "native");
-
-      const forecastUrl = new URL("https://api.open-meteo.com/v1/forecast");
-      forecastUrl.searchParams.set("latitude", FIXED_LATITUDE);
-      forecastUrl.searchParams.set("longitude", FIXED_LONGITUDE);
-      forecastUrl.searchParams.set("timezone", "auto");
-      forecastUrl.searchParams.set("hourly", "shortwave_radiation");
-      forecastUrl.searchParams.set("current", "shortwave_radiation");
-      forecastUrl.searchParams.set("past_days", "1");
-      forecastUrl.searchParams.set("forecast_days", "2");
-
-      let data = await tryFetchJson(satelliteUrl);
-      if (!data) data = await tryFetchJson(forecastUrl);
-
-      if (!data) {
-        connectionPill.textContent = "Light data error";
-        connectionPill.className = "pill warn-pill";
-        lastUpdate.textContent = "Unable to update light data. Check internet connection, then refresh the page.";
-        return;
-      }
-
-      state.lightData = data;
-      state.lastFetchMs = now;
-      lastUpdate.textContent = "Last light update: " + new Date().toLocaleTimeString();
-      connectionPill.textContent = "Live light data active";
-      connectionPill.className = "pill";
-      renderAll();
-    }
-
-    function parseDataTime(t) {
-      return new Date(t.length === 16 ? t + ":00" : t);
-    }
-
-    function getCurrentRadiation() {
-      if (!state.lightData) return 0;
-
-      const currentValue = Number(state.lightData.current?.shortwave_radiation);
-      if (Number.isFinite(currentValue)) return Math.max(0, currentValue);
-
-      const h = state.lightData.hourly;
-      if (!h || !h.time?.length) return 0;
-
-      const now = new Date().getTime();
-      let bestIndex = -1;
-      let bestTime = -Infinity;
-
-      h.time.forEach((t, i) => {
-        const value = Number(h.shortwave_radiation?.[i]);
-        if (!Number.isFinite(value)) return;
-
-        const tm = parseDataTime(t).getTime();
-        if (tm <= now && tm > bestTime) {
-          bestTime = tm;
-          bestIndex = i;
-        }
-   function radiationAt(timeMs) {
-      const h = state.lightData?.hourly;
-      if (!h || !h.time?.length) return getCurrentRadiation();
-
-      const points = [];
-      h.time.forEach((t, i) => {
-        const value = Number(h.shortwave_radiation?.[i]);
-        if (Number.isFinite(value)) {
-          points.push({ time: parseDataTime(t).getTime(), value: Math.max(0, value) });
-        }
-      });
-
-      if (!points.length) return getCurrentRadiation();
-      if (timeMs <= points[0].time) return points[0].value;
-      if (timeMs >= points[points.length - 1].time) return points[points.length - 1].value;
-
-      for (let i = 0; i < points.length - 1; i++) {
-        if (timeMs >= points[i].time && timeMs <= points[i + 1].time) {
-          const f = (timeMs - points[i].time) / (points[i + 1].time - points[i].time);
-          return points[i].value + (points[i + 1].value - points[i].value) * f;
-        }
-      }
-      return getCurrentRadiation();
-    }
-
-    function isHybridLightWindowonst values = h.shortwave_radiation.map(v => Math.max(0, Number(v) || 0));
-
-      if (timeMs <= times[0]) return values[0];
-      if (timeMs >= times[times.length - 1]) return values[values.length - 1];
-
-      for (let i = 0; i < times.length - 1; i++) {
-        if (timeMs >= times[i] && timeMs <= times[i + 1]) {
-          const f = (timeMs - times[i]) / (times[i + 1] - times[i]);
-          return values[i] + (values[i + 1] - values[i]) * f;
-        }
-      }
-      return 0;
-    }
-
-    function isHybridLightWindow(date) {
-      const h = date.getHours() + date.getMinutes() / 60;
-      if (LIGHT_ON_HOUR === LIGHT_OFF_HOUR) return true;
-      if (LIGHT_ON_HOUR < LIGHT_OFF_HOUR) return h >= LIGHT_ON_HOUR && h < LIGHT_OFF_HOUR;
-      return h >= LIGHT_ON_HOUR || h < LIGHT_OFF_HOUR;
-    }
-
-    function isFullLedWindow(date) {
-      const h = date.getHours() + date.getMinutes() / 60;
-      if (fullLedOnHourValue === fullLedOffHourValue) return true;
-      if (fullLedOnHourValue < fullLedOffHourValue) return h >= fullLedOnHourValue && h < fullLedOffHourValue;
-      return h >= fullLedOnHourValue || h < fullLedOffHourValue;
-    }
-
-    function simulateToday() {
-      if (!state.lightData) return null;
-
-      const now = new Date();
-      const start = new Date(now);
-      start.setHours(0, 0, 0, 0);
-      const end = new Date(now);
-      end.setHours(23, 59, 59, 999);
-
-      const dtSec = 300;
-      const dtMs = dtSec * 1000;
-      const ledKwhPerDli = ledEnergyAt18Dli / 18;
-      const fullLedFraction = fullLedBrightnessValue / 255;
-
-      let fiberDli = 0;
-      let hybridDli = 0;
-      let fullDli = 0;
-      let hybridLedDli = 0;
-      let fullLedDli = 0;
-      let currentHybridFraction = 0;
-      let currentFiberLux = 0;
-      let currentFiberPpfd = 0;
-
-      const labels = [];
-      const fiberSeries = [];
-      const hybridSeries = [];
-      const fullSeries = [];
-
-      for (let t = start.getTime(); t <= now.getTime(); t += dtMs) {
-        const d = new Date(t);
-        const radiation = radiationAt(t);
-        const lightInputLux = radiation * 120;
-        const lightInputPpfd = radiation * 1.96;
-        const fiberLuxValue = Math.max(0, (lightInputLux * fiberEfficiency * calibration.fiberLuxMultiplier) + calibration.fiberLuxOffset);
-        const fiberPpfdValue = Math.max(0, (lightInputPpfd * fiberEfficiency * calibration.fiberPpfdMultiplier) + calibration.fiberPpfdOffset);
-        const lightOn = isHybridLightWindow(d);
-
-        let hybridLedFraction = 0;
-        let hybridLedPpfd = 0;
-        let fullLedPpfd = 0;
-
-        if (lightOn) {
-          const luxDeficit = Math.max(0, luxSetpoint - fiberLuxValue);
-          hybridLedFraction = luxSetpoint > 0 ? clamp(luxDeficit / luxSetpoint, 0, 1) : 0;
-          hybridLedPpfd = ledMaxPpfd * hybridLedFraction;
-        }
-
-        if (isFullLedWindow(d)) {
-          fullLedPpfd = ledMaxPpfd * fullLedFraction;
-        }
-
-        fiberDli += fiberPpfdValue * dtSec / 1_000_000;
-        hybridDli += (fiberPpfdValue + hybridLedPpfd) * dtSec / 1_000_000;
-        fullDli += fullLedPpfd * dtSec / 1_000_000;
-        hybridLedDli += hybridLedPpfd * dtSec / 1_000_000;
-        fullLedDli += fullLedPpfd * dtSec / 1_000_000;
-
-        currentHybridFraction = hybridLedFraction;
-        currentFiberLux = fiberLuxValue;
-        currentFiberPpfd = fiberPpfdValue;
-
-        if (d.getMinutes() === 0 || t + dtMs > now.getTime()) {
-          labels.push(d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
-          fiberSeries.push(Number(fiberDli.toFixed(2)));
-          hybridSeries.push(Number(hybridDli.toFixed(2)));
-          fullSeries.push(Number(fullDli.toFixed(2)));
-        }
-      }
-
-      let remainingFiberDli = 0;
-      for (let t = now.getTime(); t <= end.getTime(); t += dtMs) {
-        const radiation = radiationAt(t);
-        const fiberPpfdValue = Math.max(0, (radiation * 1.96 * fiberEfficiency * calibration.fiberPpfdMultiplier) + calibration.fiberPpfdOffset);
-        remainingFiberDli += fiberPpfdValue * dtSec / 1_000_000;
-      }
-
-      const hybridKwh = hybridLedDli * ledKwhPerDli;
-      const fullKwh = fullLedDli * ledKwhPerDli;
-      const dliStillNeeded = Math.max(0, TARGET_DLI - hybridDli);
-
-      return {
-        fiberDli,
-        hybridDli,
-        fullDli,
-        hybridLedDli,
-        fullLedDli,
-        hybridKwh,
-        fullKwh,
-        remainingFiberDli,
-        dliStillNeeded,
-        currentHybridFraction,
-        currentFiberLux,
-        currentFiberPpfd,
-        chart: { labels, fiberSeries, hybridSeries, fullSeries }
+    document.addEventListener("DOMContentLoaded", () => {
+      const $ = (id) => document.getElementById(id);
+
+      const FIXED_LATITUDE = 9.755446;
+      const FIXED_LONGITUDE = 118.745955;
+      const TARGET_DLI = 18;
+      const LIGHT_ON_HOUR = 7;
+      const LIGHT_OFF_HOUR = 21;
+
+      let fiberEfficiency = 0.25;
+      let luxSetpoint = 10000;
+      let ledMaxPpfd = 204.43;
+      let ledEnergyAt18Dli = 0.332445;
+      let fullLedOnHourValue = 7;
+      let fullLedOffHourValue = 21;
+      let fullLedBrightnessValue = 255;
+
+      const calibration = {
+        fiberLuxMultiplier: 1,
+        fiberPpfdMultiplier: 1,
+        fiberLuxOffset: 0,
+        fiberPpfdOffset: 0,
+        phOffset: 0,
+        waterOffset: 0,
+        phMultiplier: 1,
+        waterMultiplier: 1
       };
-    }
 
-    function renderChart(sim) {
-      const ctx = document.getElementById("dliChart");
-      if (state.chart) state.chart.destroy();
-      state.chart = new Chart(ctx, {
-        type: "line",
-        data: {
-          labels: sim.chart.labels,
-          datasets: [
-            { label: "Fiber Light DLI", data: sim.chart.fiberSeries, borderWidth: 2, tension: 0.25 },
-            { label: "Hybrid System DLI", data: sim.chart.hybridSeries, borderWidth: 3, tension: 0.25 },
-            { label: "Full LED DLI", data: sim.chart.fullSeries, borderWidth: 2, tension: 0.25 }
-          ]
-        },
-        options: {
-          responsive: true,
-          plugins: {
-            legend: { labels: { color: "#e5e7eb" } }
-          },
-          scales: {
-            x: {
-              ticks: { color: "#94a3b8" },
-              grid: { color: "rgba(255,255,255,0.05)" }
-            },
-            y: {
-              ticks: { color: "#94a3b8" },
-              grid: { color: "rgba(255,255,255,0.05)" },
-              beginAtZero: true
+      const state = {
+        chart: null,
+        lastFetchMs: 0,
+        lightData: null
+      };
+
+      function setText(id, text) {
+        const node = $(id);
+        if (node) node.textContent = text;
+      }
+
+      function setClass(id, value) {
+        const node = $(id);
+        if (node) node.className = value;
+      }
+
+      function setPill(text, mode = "warn") {
+        const pill = $("connectionPill");
+        if (!pill) return;
+        pill.textContent = text;
+        pill.className = mode === "ok" ? "pill" : mode === "bad" ? "pill bad-pill" : "pill warn-pill";
+      }
+
+      function clamp(v, min, max) {
+        const n = Number(v);
+        if (!Number.isFinite(n)) return min;
+        return Math.min(max, Math.max(min, n));
+      }
+
+      function fmt(n, d = 2) {
+        const value = Number(n);
+        if (!Number.isFinite(value)) return "0";
+        return value.toLocaleString(undefined, { maximumFractionDigits: d, minimumFractionDigits: d });
+      }
+
+      function showPage(pageId) {
+        $("dashboardPage").classList.toggle("hidden", pageId !== "dashboardPage");
+        $("calibrationPage").classList.toggle("hidden", pageId !== "calibrationPage");
+        if (pageId === "dashboardPage") renderAll();
+      }
+
+      function updateClock() {
+        const now = new Date();
+        setText("clock", now.toLocaleTimeString());
+        setText("dateText", now.toLocaleDateString(undefined, {
+          weekday: "long",
+          year: "numeric",
+          month: "long",
+          day: "numeric"
+        }));
+      }
+
+      function loadNumber(key, fallback) {
+        const saved = Number(localStorage.getItem(key));
+        return Number.isFinite(saved) ? saved : fallback;
+      }
+
+      function setInputValue(id, value) {
+        const input = $(id);
+        if (input) input.value = value;
+      }
+
+      function loadFullLedControls() {
+        fullLedBrightnessValue = clamp(loadNumber("fullLedBrightnessValue", 255), 0, 255);
+        fullLedOnHourValue = clamp(loadNumber("fullLedOnHourValue", 7), 0, 23);
+        fullLedOffHourValue = clamp(loadNumber("fullLedOffHourValue", 21), 0, 23);
+
+        setInputValue("fullLedBrightnessControl", fullLedBrightnessValue);
+        setInputValue("fullLedOnHour", fullLedOnHourValue);
+        setInputValue("fullLedOffHour", fullLedOffHourValue);
+        updateFullLedControlText();
+      }
+
+      function updateFullLedControlText() {
+        const input = $("fullLedBrightnessControl");
+        const value = clamp(input ? input.value : fullLedBrightnessValue, 0, 255);
+        setText("fullLedBrightnessText", value.toFixed(0));
+        setText("fullBrightnessReadout", value.toFixed(0));
+      }
+
+      function saveFullLedControls() {
+        fullLedBrightnessValue = clamp($("fullLedBrightnessControl").value, 0, 255);
+        fullLedOnHourValue = clamp($("fullLedOnHour").value, 0, 23);
+        fullLedOffHourValue = clamp($("fullLedOffHour").value, 0, 23);
+
+        localStorage.setItem("fullLedBrightnessValue", fullLedBrightnessValue);
+        localStorage.setItem("fullLedOnHourValue", fullLedOnHourValue);
+        localStorage.setItem("fullLedOffHourValue", fullLedOffHourValue);
+
+        setText("fullLedControlStatus", `Full LED settings applied: ${fullLedBrightnessValue.toFixed(0)} / 255, ${String(fullLedOnHourValue).padStart(2, "0")}:00 to ${String(fullLedOffHourValue).padStart(2, "0")}:00.`);
+        renderAll();
+      }
+
+      function loadCalibration() {
+        calibration.fiberLuxMultiplier = loadNumber("calFiberLux", 1);
+        calibration.fiberPpfdMultiplier = loadNumber("calFiberPpfd", 1);
+        calibration.fiberLuxOffset = loadNumber("calFiberLuxOffset", 0);
+        calibration.fiberPpfdOffset = loadNumber("calFiberPpfdOffset", 0);
+        calibration.phOffset = loadNumber("calPH", 0);
+        calibration.waterOffset = loadNumber("calWater", 0);
+        calibration.phMultiplier = loadNumber("calPHMultiplier", 1);
+        calibration.waterMultiplier = loadNumber("calWaterMultiplier", 1);
+        ledMaxPpfd = loadNumber("calLedMaxPpfd", 204.43);
+        ledEnergyAt18Dli = loadNumber("calLedEnergy", 0.332445);
+        luxSetpoint = loadNumber("calLuxSetpoint", 10000);
+        fiberEfficiency = clamp(loadNumber("calFiberEfficiency", 0.25), 0, 1);
+
+        setInputValue("calFiberLux", calibration.fiberLuxMultiplier);
+        setInputValue("calFiberPpfd", calibration.fiberPpfdMultiplier);
+        setInputValue("calFiberLuxOffset", calibration.fiberLuxOffset);
+        setInputValue("calFiberPpfdOffset", calibration.fiberPpfdOffset);
+        setInputValue("calPH", calibration.phOffset);
+        setInputValue("calWater", calibration.waterOffset);
+        setInputValue("calPHMultiplier", calibration.phMultiplier);
+        setInputValue("calWaterMultiplier", calibration.waterMultiplier);
+        setInputValue("calLedMaxPpfd", ledMaxPpfd);
+        setInputValue("calLedEnergy", ledEnergyAt18Dli);
+        setInputValue("calLuxSetpoint", luxSetpoint);
+        setInputValue("calFiberEfficiency", fiberEfficiency.toFixed(3));
+      }
+
+      function saveCalibration() {
+        calibration.fiberLuxMultiplier = Number($("calFiberLux").value || 1);
+        calibration.fiberPpfdMultiplier = Number($("calFiberPpfd").value || 1);
+        calibration.fiberLuxOffset = Number($("calFiberLuxOffset").value || 0);
+        calibration.fiberPpfdOffset = Number($("calFiberPpfdOffset").value || 0);
+        calibration.phOffset = Number($("calPH").value || 0);
+        calibration.waterOffset = Number($("calWater").value || 0);
+        calibration.phMultiplier = Number($("calPHMultiplier").value || 1);
+        calibration.waterMultiplier = Number($("calWaterMultiplier").value || 1);
+        ledMaxPpfd = Number($("calLedMaxPpfd").value || 204.43);
+        ledEnergyAt18Dli = Number($("calLedEnergy").value || 0.332445);
+        luxSetpoint = Number($("calLuxSetpoint").value || 10000);
+        fiberEfficiency = clamp($("calFiberEfficiency").value || 0.25, 0, 1);
+
+        localStorage.setItem("calFiberLux", calibration.fiberLuxMultiplier);
+        localStorage.setItem("calFiberPpfd", calibration.fiberPpfdMultiplier);
+        localStorage.setItem("calFiberLuxOffset", calibration.fiberLuxOffset);
+        localStorage.setItem("calFiberPpfdOffset", calibration.fiberPpfdOffset);
+        localStorage.setItem("calPH", calibration.phOffset);
+        localStorage.setItem("calWater", calibration.waterOffset);
+        localStorage.setItem("calPHMultiplier", calibration.phMultiplier);
+        localStorage.setItem("calWaterMultiplier", calibration.waterMultiplier);
+        localStorage.setItem("calLedMaxPpfd", ledMaxPpfd);
+        localStorage.setItem("calLedEnergy", ledEnergyAt18Dli);
+        localStorage.setItem("calLuxSetpoint", luxSetpoint);
+        localStorage.setItem("calFiberEfficiency", fiberEfficiency);
+
+        setText("calibrationStatus", "Calibration saved successfully.");
+        renderAll();
+      }
+
+      function resetCalibration() {
+        [
+          "calFiberLux", "calFiberPpfd", "calFiberLuxOffset", "calFiberPpfdOffset",
+          "calPH", "calWater", "calPHMultiplier", "calWaterMultiplier",
+          "calLedMaxPpfd", "calLedEnergy", "calLuxSetpoint", "calFiberEfficiency"
+        ].forEach(k => localStorage.removeItem(k));
+        loadCalibration();
+        setText("calibrationStatus", "Calibration reset to default values.");
+        renderAll();
+      }
+
+      function updateWaterAndPH() {
+        const now = new Date();
+        const minutes = now.getHours() * 60 + now.getMinutes();
+        const slowCycle = Math.sin(minutes / 1440 * Math.PI * 2);
+        const fasterCycle = Math.sin(minutes / 180 * Math.PI * 2);
+
+        const phRaw = 6.2 + slowCycle * 0.18 + fasterCycle * 0.04;
+        const waterRaw = 76 - (minutes / 1440) * 8 + Math.sin(minutes / 240 * Math.PI * 2) * 2;
+
+        const ph = clamp((phRaw * calibration.phMultiplier) + calibration.phOffset, 5.0, 8.5);
+        const water = clamp((waterRaw * calibration.waterMultiplier) + calibration.waterOffset, 0, 100);
+
+        setText("phLevel", fmt(ph, 2));
+        setText("waterLevel", fmt(water, 0));
+        setClass("phLevel", ph < 5.5 || ph > 6.8 ? "value bad" : "value good");
+        setClass("waterLevel", water < 30 ? "value bad" : water < 50 ? "value warn" : "value blue");
+      }
+
+      async function fetchWithTimeout(url, timeoutMs = 10000) {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), timeoutMs);
+        try {
+          const response = await fetch(url.toString(), { cache: "no-store", signal: controller.signal });
+          clearTimeout(timer);
+          return response;
+        } catch (err) {
+          clearTimeout(timer);
+          throw err;
+        }
+      }
+
+      async function tryFetchJson(url) {
+        try {
+          const response = await fetchWithTimeout(url, 10000);
+          if (!response.ok) return null;
+
+          const data = await response.json();
+          if (data.error) return null;
+          if (!data.hourly || !Array.isArray(data.hourly.time) || !Array.isArray(data.hourly.shortwave_radiation)) return null;
+
+          const hasUsableLightValue = data.hourly.shortwave_radiation.some(v => Number.isFinite(Number(v)));
+          const hasCurrentLightValue = Number.isFinite(Number(data.current?.shortwave_radiation));
+          return hasUsableLightValue || hasCurrentLightValue ? data : null;
+        } catch (err) {
+          return null;
+        }
+      }
+
+      async function fetchLightData(force = false) {
+        const now = Date.now();
+        if (!force && now - state.lastFetchMs < 5 * 60 * 1000) return;
+
+        setPill("Updating light data", "warn");
+        setText("lastUpdate", "Updating light data...");
+
+        const satelliteUrl = new URL("https://satellite-api.open-meteo.com/v1/archive");
+        satelliteUrl.searchParams.set("latitude", FIXED_LATITUDE);
+        satelliteUrl.searchParams.set("longitude", FIXED_LONGITUDE);
+        satelliteUrl.searchParams.set("timezone", "Asia/Manila");
+        satelliteUrl.searchParams.set("hourly", "shortwave_radiation");
+        satelliteUrl.searchParams.set("models", "satellite_radiation_seamless");
+        satelliteUrl.searchParams.set("temporal_resolution", "native");
+
+        const forecastUrl = new URL("https://api.open-meteo.com/v1/forecast");
+        forecastUrl.searchParams.set("latitude", FIXED_LATITUDE);
+        forecastUrl.searchParams.set("longitude", FIXED_LONGITUDE);
+        forecastUrl.searchParams.set("timezone", "Asia/Manila");
+        forecastUrl.searchParams.set("hourly", "shortwave_radiation");
+        forecastUrl.searchParams.set("current", "shortwave_radiation");
+        forecastUrl.searchParams.set("past_days", "1");
+        forecastUrl.searchParams.set("forecast_days", "2");
+
+        let data = await tryFetchJson(satelliteUrl);
+        if (!data) data = await tryFetchJson(forecastUrl);
+
+        if (!data) {
+          setPill("Light data unavailable", "bad");
+          setText("lastUpdate", "Unable to update light data. Check internet connection, browser permissions, or hosting setup.");
+          return;
+        }
+
+        state.lightData = data;
+        state.lastFetchMs = now;
+        setText("lastUpdate", "Last light update: " + new Date().toLocaleTimeString());
+        setPill("Live light data active", "ok");
+        renderAll();
+      }
+
+      function parseDataTime(t) {
+        if (!t) return new Date(NaN);
+        return new Date(t.length === 16 ? t + ":00" : t);
+      }
+
+      function getCurrentRadiation() {
+        if (!state.lightData) return 0;
+
+        const currentValue = Number(state.lightData.current?.shortwave_radiation);
+        if (Number.isFinite(currentValue)) return Math.max(0, currentValue);
+
+        const h = state.lightData.hourly;
+        if (!h || !h.time?.length) return 0;
+
+        const now = Date.now();
+        let bestIndex = -1;
+        let bestTime = -Infinity;
+
+        h.time.forEach((t, i) => {
+          const value = Number(h.shortwave_radiation?.[i]);
+          if (!Number.isFinite(value)) return;
+
+          const tm = parseDataTime(t).getTime();
+          if (Number.isFinite(tm) && tm <= now && tm > bestTime) {
+            bestTime = tm;
+            bestIndex = i;
+          }
+        });
+
+        if (bestIndex < 0) {
+          let bestDiff = Infinity;
+          h.time.forEach((t, i) => {
+            const value = Number(h.shortwave_radiation?.[i]);
+            if (!Number.isFinite(value)) return;
+
+            const diff = Math.abs(parseDataTime(t).getTime() - now);
+            if (diff < bestDiff) {
+              bestDiff = diff;
+              bestIndex = i;
             }
+          });
+        }
+
+        if (bestIndex < 0) return 0;
+        return Math.max(0, Number(h.shortwave_radiation[bestIndex]) || 0);
+      }
+
+      function radiationAt(timeMs) {
+        const h = state.lightData?.hourly;
+        if (!h || !h.time?.length) return getCurrentRadiation();
+
+        const points = [];
+        h.time.forEach((t, i) => {
+          const value = Number(h.shortwave_radiation?.[i]);
+          const time = parseDataTime(t).getTime();
+          if (Number.isFinite(value) && Number.isFinite(time)) {
+            points.push({ time, value: Math.max(0, value) });
+          }
+        });
+
+        if (!points.length) return getCurrentRadiation();
+        if (timeMs <= points[0].time) return points[0].value;
+        if (timeMs >= points[points.length - 1].time) return points[points.length - 1].value;
+
+        for (let i = 0; i < points.length - 1; i++) {
+          if (timeMs >= points[i].time && timeMs <= points[i + 1].time) {
+            const f = (timeMs - points[i].time) / (points[i + 1].time - points[i].time);
+            return points[i].value + (points[i + 1].value - points[i].value) * f;
           }
         }
-      });
-    }
+        return getCurrentRadiation();
+      }
 
-    function renderAll() {
-      if (!state.lightData) return;
-      const sim = simulateToday();
-      if (!sim) return;
-      state.sim = sim;
+      function isWithinWindow(date, startHour, endHour) {
+        const h = date.getHours() + date.getMinutes() / 60;
+        if (startHour === endHour) return true;
+        if (startHour < endHour) return h >= startHour && h < endHour;
+        return h >= startHour || h < endHour;
+      }
 
-      const currentRadiation = getCurrentRadiation();
-      const liveFiberLux = Math.max(0, (currentRadiation * 120 * fiberEfficiency * calibration.fiberLuxMultiplier) + calibration.fiberLuxOffset);
-      const liveFiberPpfd = Math.max(0, (currentRadiation * 1.96 * fiberEfficiency * calibration.fiberPpfdMultiplier) + calibration.fiberPpfdOffset);
-      sim.currentFiberLux = liveFiberLux;
-      sim.currentFiberPpfd = liveFiberPpfd;
+      function simulateToday() {
+        if (!state.lightData) return null;
 
-      fiberLux.textContent = fmt(sim.currentFiberLux, 0);
-      fiberPpfd.textContent = fmt(sim.currentFiberPpfd, 0);
-      dliHybrid.textContent = fmt(sim.hybridDli, 2);
-      dliFull.textContent = fmt(sim.fullDli, 2);
-      kwhHybrid.textContent = fmt(sim.hybridKwh, 3);
-      kwhFull.textContent = fmt(sim.fullKwh, 3);
-      hybridLedDli.textContent = fmt(sim.hybridLedDli, 2);
-      fullLedDli.textContent = fmt(sim.fullLedDli, 2);
-      fiberRemaining.textContent = fmt(sim.remainingFiberDli, 2);
-      dliNeeded.textContent = fmt(sim.dliStillNeeded, 2);
+        const now = new Date();
+        const start = new Date(now);
+        start.setHours(0, 0, 0, 0);
+        const end = new Date(now);
+        end.setHours(23, 59, 59, 999);
 
-      const pwm = Math.round(sim.currentHybridFraction * 255);
-      hybridPwm.textContent = pwm;
+        const dtSec = 300;
+        const dtMs = dtSec * 1000;
+        const ledKwhPerDli = ledEnergyAt18Dli / 18;
+        const fullLedFraction = fullLedBrightnessValue / 255;
 
-      const hybridPct = TARGET_DLI > 0 ? clamp(sim.hybridDli / TARGET_DLI * 100, 0, 100) : 0;
-      const fullPct = TARGET_DLI > 0 ? clamp(sim.fullDli / TARGET_DLI * 100, 0, 100) : 0;
-      hybridBar.style.width = hybridPct + "%";
-      fullBar.style.width = fullPct + "%";
+        let fiberDli = 0;
+        let hybridDli = 0;
+        let fullDli = 0;
+        let hybridLedDli = 0;
+        let fullLedDli = 0;
+        let currentHybridFraction = 0;
+        let currentFiberLux = 0;
+        let currentFiberPpfd = 0;
 
-      hybridStatus.textContent = `${fmt(hybridPct,1)}% of target. Fiber lux: ${fmt(sim.currentFiberLux,0)} / ${fmt(luxSetpoint,0)} lux. Fiber DLI today: ${fmt(sim.fiberDli,2)}. LED and fiber light are counted simultaneously.`;
-      fullStatus.textContent = `${fmt(fullPct,1)}% of target. Manual brightness: ${fullLedBrightnessValue} / 255. Timer: ${String(fullLedOnHourValue).padStart(2, "0")}:00 to ${String(fullLedOffHourValue).padStart(2, "0")}:00.`;
-      updateWaterAndPH();
+        const labels = [];
+        const fiberSeries = [];
+        const hybridSeries = [];
+        const fullSeries = [];
 
-      renderChart(sim);
-    }
+        for (let t = start.getTime(); t <= now.getTime(); t += dtMs) {
+          const d = new Date(t);
+          const radiation = radiationAt(t);
+          const fiberLuxValue = Math.max(0, (radiation * 120 * fiberEfficiency * calibration.fiberLuxMultiplier) + calibration.fiberLuxOffset);
+          const fiberPpfdValue = Math.max(0, (radiation * 1.96 * fiberEfficiency * calibration.fiberPpfdMultiplier) + calibration.fiberPpfdOffset);
 
-    function boot() {
-      loadCalibration();
-      loadFullLedControls();
-      updateClock();
-      updateWaterAndPH();
-      setInterval(updateClock, 1000);
-      setInterval(updateWaterAndPH, 1000);
-      fetchLightData(true);
-      setInterval(() => fetchLightData(false), 30 * 1000);
-      setInterval(() => renderAll(), 10 * 1000);
-    }
+          let hybridLedFraction = 0;
+          let hybridLedPpfd = 0;
+          let fullLedPpfd = 0;
 
-    boot();
+          if (isWithinWindow(d, LIGHT_ON_HOUR, LIGHT_OFF_HOUR)) {
+            const luxDeficit = Math.max(0, luxSetpoint - fiberLuxValue);
+            hybridLedFraction = luxSetpoint > 0 ? clamp(luxDeficit / luxSetpoint, 0, 1) : 0;
+            hybridLedPpfd = ledMaxPpfd * hybridLedFraction;
+          }
+
+          if (isWithinWindow(d, fullLedOnHourValue, fullLedOffHourValue)) {
+            fullLedPpfd = ledMaxPpfd * fullLedFraction;
+          }
+
+          fiberDli += fiberPpfdValue * dtSec / 1_000_000;
+          hybridDli += (fiberPpfdValue + hybridLedPpfd) * dtSec / 1_000_000;
+          fullDli += fullLedPpfd * dtSec / 1_000_000;
+          hybridLedDli += hybridLedPpfd * dtSec / 1_000_000;
+          fullLedDli += fullLedPpfd * dtSec / 1_000_000;
+
+          currentHybridFraction = hybridLedFraction;
+          currentFiberLux = fiberLuxValue;
+          currentFiberPpfd = fiberPpfdValue;
+
+          if (d.getMinutes() === 0 || t + dtMs > now.getTime()) {
+            labels.push(d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
+            fiberSeries.push(Number(fiberDli.toFixed(2)));
+            hybridSeries.push(Number(hybridDli.toFixed(2)));
+            fullSeries.push(Number(fullDli.toFixed(2)));
+          }
+        }
+
+        let remainingFiberDli = 0;
+        for (let t = now.getTime(); t <= end.getTime(); t += dtMs) {
+          const radiation = radiationAt(t);
+          const fiberPpfdValue = Math.max(0, (radiation * 1.96 * fiberEfficiency * calibration.fiberPpfdMultiplier) + calibration.fiberPpfdOffset);
+          remainingFiberDli += fiberPpfdValue * dtSec / 1_000_000;
+        }
+
+        const liveRadiation = getCurrentRadiation();
+        currentFiberLux = Math.max(0, (liveRadiation * 120 * fiberEfficiency * calibration.fiberLuxMultiplier) + calibration.fiberLuxOffset);
+        currentFiberPpfd = Math.max(0, (liveRadiation * 1.96 * fiberEfficiency * calibration.fiberPpfdMultiplier) + calibration.fiberPpfdOffset);
+
+        return {
+          fiberDli,
+          hybridDli,
+          fullDli,
+          hybridLedDli,
+          fullLedDli,
+          hybridKwh: hybridLedDli * ledKwhPerDli,
+          fullKwh: fullLedDli * ledKwhPerDli,
+          remainingFiberDli,
+          dliStillNeeded: Math.max(0, TARGET_DLI - hybridDli),
+          currentHybridFraction,
+          currentFiberLux,
+          currentFiberPpfd,
+          chart: { labels, fiberSeries, hybridSeries, fullSeries }
+        };
+      }
+
+      function renderChart(sim) {
+        if (!window.Chart) {
+          setText("chartNotice", "Chart library unavailable. Numeric readings are still active.");
+          return;
+        }
+
+        const ctx = $("dliChart");
+        if (!ctx) return;
+        if (state.chart) state.chart.destroy();
+
+        state.chart = new Chart(ctx, {
+          type: "line",
+          data: {
+            labels: sim.chart.labels,
+            datasets: [
+              { label: "Fiber Light DLI", data: sim.chart.fiberSeries, borderWidth: 2, tension: 0.25 },
+              { label: "Hybrid System DLI", data: sim.chart.hybridSeries, borderWidth: 3, tension: 0.25 },
+              { label: "Full LED DLI", data: sim.chart.fullSeries, borderWidth: 2, tension: 0.25 }
+            ]
+          },
+          options: {
+            responsive: true,
+            plugins: { legend: { labels: { color: "#e5e7eb" } } },
+            scales: {
+              x: { ticks: { color: "#94a3b8" }, grid: { color: "rgba(255,255,255,0.05)" } },
+              y: { ticks: { color: "#94a3b8" }, grid: { color: "rgba(255,255,255,0.05)" }, beginAtZero: true }
+            }
+          }
+        });
+      }
+
+      function renderAll() {
+        if (!state.lightData) return;
+        const sim = simulateToday();
+        if (!sim) return;
+
+        setText("fiberLux", fmt(sim.currentFiberLux, 0));
+        setText("fiberPpfd", fmt(sim.currentFiberPpfd, 0));
+        setText("dliHybrid", fmt(sim.hybridDli, 2));
+        setText("dliFull", fmt(sim.fullDli, 2));
+        setText("kwhHybrid", fmt(sim.hybridKwh, 3));
+        setText("kwhFull", fmt(sim.fullKwh, 3));
+        setText("hybridLedDli", fmt(sim.hybridLedDli, 2));
+        setText("fullLedDli", fmt(sim.fullLedDli, 2));
+        setText("fiberRemaining", fmt(sim.remainingFiberDli, 2));
+        setText("dliNeeded", fmt(sim.dliStillNeeded, 2));
+
+        const pwm = Math.round(sim.currentHybridFraction * 255);
+        setText("hybridPwm", pwm.toFixed(0));
+
+        const hybridPct = TARGET_DLI > 0 ? clamp(sim.hybridDli / TARGET_DLI * 100, 0, 100) : 0;
+        const fullPct = TARGET_DLI > 0 ? clamp(sim.fullDli / TARGET_DLI * 100, 0, 100) : 0;
+        $("hybridBar").style.width = hybridPct + "%";
+        $("fullBar").style.width = fullPct + "%";
+
+        setText("hybridStatus", `${fmt(hybridPct,1)}% of target. Fiber lux: ${fmt(sim.currentFiberLux,0)} / ${fmt(luxSetpoint,0)} lux. Fiber DLI today: ${fmt(sim.fiberDli,2)}. LED and fiber light are counted simultaneously.`);
+        setText("fullStatus", `${fmt(fullPct,1)}% of target. Manual brightness: ${fullLedBrightnessValue} / 255. Timer: ${String(fullLedOnHourValue).padStart(2, "0")}:00 to ${String(fullLedOffHourValue).padStart(2, "0")}:00.`);
+
+        updateWaterAndPH();
+        renderChart(sim);
+      }
+
+      function bindEvents() {
+        $("dashboardBtn").addEventListener("click", () => showPage("dashboardPage"));
+        $("calibrationBtn").addEventListener("click", () => showPage("calibrationPage"));
+        $("returnDashboardBtn").addEventListener("click", () => showPage("dashboardPage"));
+        $("saveFullLedBtn").addEventListener("click", saveFullLedControls);
+        $("fullLedBrightnessControl").addEventListener("input", updateFullLedControlText);
+        $("saveCalibrationBtn").addEventListener("click", saveCalibration);
+        $("resetCalibrationBtn").addEventListener("click", resetCalibration);
+        $("efficiencyBtn").addEventListener("click", () => $("efficiencyCalibrationBox").classList.toggle("hidden"));
+      }
+
+      function boot() {
+        bindEvents();
+        loadCalibration();
+        loadFullLedControls();
+        updateClock();
+        updateWaterAndPH();
+        setPill("Starting light update", "warn");
+        setInterval(updateClock, 1000);
+        setInterval(updateWaterAndPH, 1000);
+        fetchLightData(true);
+        setInterval(() => fetchLightData(false), 30 * 1000);
+        setInterval(() => renderAll(), 10 * 1000);
+      }
+
+      try {
+        boot();
+      } catch (err) {
+        setPill("Dashboard startup error", "bad");
+        setText("lastUpdate", "Dashboard startup error. Open the browser console to see the exact message.");
+        console.error(err);
+      }
+    });
   </script>
 </body>
 </html>
