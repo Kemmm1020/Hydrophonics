@@ -599,9 +599,15 @@
       try {
         const response = await fetch(url.toString(), { cache: "no-store" });
         if (!response.ok) return null;
+
         const data = await response.json();
         if (data.error) return null;
         if (!data.hourly || !Array.isArray(data.hourly.shortwave_radiation)) return null;
+
+        const hasUsableLightValue = data.hourly.shortwave_radiation.some(v => Number.isFinite(Number(v)));
+        const hasCurrentLightValue = Number.isFinite(Number(data.current?.shortwave_radiation));
+
+        if (!hasUsableLightValue && !hasCurrentLightValue) return null;
         return data;
       } catch (err) {
         return null;
@@ -628,6 +634,7 @@
       forecastUrl.searchParams.set("longitude", FIXED_LONGITUDE);
       forecastUrl.searchParams.set("timezone", "auto");
       forecastUrl.searchParams.set("hourly", "shortwave_radiation");
+      forecastUrl.searchParams.set("current", "shortwave_radiation");
       forecastUrl.searchParams.set("past_days", "1");
       forecastUrl.searchParams.set("forecast_days", "2");
 
@@ -655,6 +662,10 @@
 
     function getCurrentRadiation() {
       if (!state.lightData) return 0;
+
+      const currentValue = Number(state.lightData.current?.shortwave_radiation);
+      if (Number.isFinite(currentValue)) return Math.max(0, currentValue);
+
       const h = state.lightData.hourly;
       if (!h || !h.time?.length) return 0;
 
@@ -663,26 +674,40 @@
       let bestTime = -Infinity;
 
       h.time.forEach((t, i) => {
+        const value = Number(h.shortwave_radiation?.[i]);
+        if (!Number.isFinite(value)) return;
+
         const tm = parseDataTime(t).getTime();
-        const avg = h.shortwave_radiation?.[i];
-        if (tm <= now && tm > bestTime && Number.isFinite(Number(avg))) {
+        if (tm <= now && tm > bestTime) {
           bestTime = tm;
           bestIndex = i;
         }
+   function radiationAt(timeMs) {
+      const h = state.lightData?.hourly;
+      if (!h || !h.time?.length) return getCurrentRadiation();
+
+      const points = [];
+      h.time.forEach((t, i) => {
+        const value = Number(h.shortwave_radiation?.[i]);
+        if (Number.isFinite(value)) {
+          points.push({ time: parseDataTime(t).getTime(), value: Math.max(0, value) });
+        }
       });
 
-      if (bestIndex < 0) bestIndex = h.time.length - 1;
+      if (!points.length) return getCurrentRadiation();
+      if (timeMs <= points[0].time) return points[0].value;
+      if (timeMs >= points[points.length - 1].time) return points[points.length - 1].value;
 
-      const average = h.shortwave_radiation?.[bestIndex];
-      return Math.max(0, Number(average) || 0);
+      for (let i = 0; i < points.length - 1; i++) {
+        if (timeMs >= points[i].time && timeMs <= points[i + 1].time) {
+          const f = (timeMs - points[i].time) / (points[i + 1].time - points[i].time);
+          return points[i].value + (points[i + 1].value - points[i].value) * f;
+        }
+      }
+      return getCurrentRadiation();
     }
 
-    function radiationAt(timeMs) {
-      const h = state.lightData?.hourly;
-      if (!h || !h.time?.length) return 0;
-
-      const times = h.time.map(t => parseDataTime(t).getTime());
-      const values = h.shortwave_radiation.map(v => Math.max(0, Number(v) || 0));
+    function isHybridLightWindowonst values = h.shortwave_radiation.map(v => Math.max(0, Number(v) || 0));
 
       if (timeMs <= times[0]) return values[0];
       if (timeMs >= times[times.length - 1]) return values[values.length - 1];
@@ -845,6 +870,12 @@
       const sim = simulateToday();
       if (!sim) return;
       state.sim = sim;
+
+      const currentRadiation = getCurrentRadiation();
+      const liveFiberLux = Math.max(0, (currentRadiation * 120 * fiberEfficiency * calibration.fiberLuxMultiplier) + calibration.fiberLuxOffset);
+      const liveFiberPpfd = Math.max(0, (currentRadiation * 1.96 * fiberEfficiency * calibration.fiberPpfdMultiplier) + calibration.fiberPpfdOffset);
+      sim.currentFiberLux = liveFiberLux;
+      sim.currentFiberPpfd = liveFiberPpfd;
 
       fiberLux.textContent = fmt(sim.currentFiberLux, 0);
       fiberPpfd.textContent = fmt(sim.currentFiberPpfd, 0);
