@@ -1,0 +1,870 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Smart Hydroponics Light Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root {
+      --bg: #07111f;
+      --panel: #101b33;
+      --line: rgba(255,255,255,0.08);
+      --text: #e5e7eb;
+      --muted: #94a3b8;
+      --good: #22c55e;
+      --warn: #eab308;
+      --bad: #ef4444;
+      --blue: #38bdf8;
+      --violet: #a78bfa;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      background: radial-gradient(circle at top, #13223d, var(--bg) 55%);
+      color: var(--text);
+      padding: 14px;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+    }
+
+    h1, h2, h3 { margin: 0; }
+    h1 { font-size: clamp(22px, 4vw, 34px); }
+
+    .subtitle {
+      color: var(--muted);
+      margin-top: 6px;
+      max-width: 850px;
+      line-height: 1.45;
+    }
+
+    .top-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .nav-button {
+      width: auto;
+      min-width: 140px;
+      padding: 9px 12px;
+      margin-top: 0;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 12px;
+    }
+
+    .card {
+      background: linear-gradient(180deg, rgba(16,27,51,0.98), rgba(10,18,34,0.98));
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 16px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.24);
+    }
+
+    .span-12 { grid-column: span 12; }
+    .span-8 { grid-column: span 8; }
+    .span-6 { grid-column: span 6; }
+    .span-4 { grid-column: span 4; }
+    .span-3 { grid-column: span 3; }
+
+    .metric-title {
+      color: var(--muted);
+      font-size: 13px;
+      margin-bottom: 8px;
+    }
+
+    .value {
+      font-size: clamp(22px, 4vw, 34px);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+
+    .unit {
+      font-size: 13px;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+
+    .good { color: var(--good); }
+    .warn { color: var(--warn); }
+    .bad { color: var(--bad); }
+    .blue { color: var(--blue); }
+    .violet { color: var(--violet); }
+
+    label {
+      display: block;
+      font-size: 13px;
+      color: var(--muted);
+      margin-top: 10px;
+      margin-bottom: 5px;
+    }
+
+    input, button {
+      width: 100%;
+      padding: 10px 11px;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      background: #0b1221;
+      color: var(--text);
+      outline: none;
+    }
+
+    input[type="range"] { padding: 0; }
+
+    button {
+      background: linear-gradient(135deg, var(--good), #86efac);
+      color: #03110a;
+      font-weight: 800;
+      cursor: pointer;
+      border: 0;
+      margin-top: 12px;
+    }
+
+    button.secondary {
+      background: #172554;
+      color: var(--text);
+      border: 1px solid rgba(56,189,248,0.25);
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .status-line {
+      color: var(--muted);
+      font-size: 13px;
+      margin-top: 8px;
+      line-height: 1.4;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 10px;
+      border-radius: 999px;
+      background: rgba(34,197,94,0.12);
+      color: #bbf7d0;
+      border: 1px solid rgba(34,197,94,0.18);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .pill.warn-pill {
+      background: rgba(234,179,8,0.12);
+      color: #fef08a;
+      border-color: rgba(234,179,8,0.18);
+    }
+
+    .progress {
+      height: 12px;
+      background: #0b1221;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      overflow: hidden;
+      margin-top: 10px;
+    }
+
+    .bar {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--good), var(--blue));
+      transition: width 0.35s ease;
+    }
+
+    .small {
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+
+    .hidden { display: none; }
+
+    .calibration-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+    }
+
+    @media (max-width: 920px) {
+      .span-8, .span-6, .span-4, .span-3 { grid-column: span 12; }
+      .row, .calibration-grid { grid-template-columns: 1fr; }
+      .top-actions { justify-content: flex-start; }
+      .nav-button { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>🌱 Smart Hydroponics Light Dashboard</h1>
+      <p class="subtitle">
+        Real-time monitoring panel for fiber-delivered light, DLI accumulation, hybrid LED support, full LED operation, nutrient pH, water level, and LED energy consumption.
+      </p>
+    </div>
+    <div class="top-actions">
+      <span id="connectionPill" class="pill warn-pill">Light data initializing</span>
+      <button class="nav-button secondary" onclick="showPage('dashboardPage')">Dashboard</button>
+      <button class="nav-button secondary" onclick="showPage('calibrationPage')">Calibration</button>
+    </div>
+  </header>
+
+  <main id="dashboardPage" class="grid">
+    <section class="card span-12">
+      <div class="row">
+        <div>
+          <h3>System Time</h3>
+          <p class="value blue" id="clock">--:--:--</p>
+          <p class="unit" id="dateText">Loading date...</p>
+        </div>
+        <div>
+          <h3>System Status</h3>
+          <p class="status-line" id="lastUpdate">Waiting for light update...</p>
+          <p class="status-line">System values refresh automatically during operation.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="card span-3">
+      <div class="metric-title">Fiber Light Intensity</div>
+      <div class="value good" id="fiberLux">0</div>
+      <div class="unit">lux at fiber output</div>
+    </section>
+
+    <section class="card span-3">
+      <div class="metric-title">Fiber Light PPFD</div>
+      <div class="value good" id="fiberPpfd">0</div>
+      <div class="unit">µmol/m²/s at plant area</div>
+    </section>
+
+    <section class="card span-3">
+      <div class="metric-title">Hybrid LED Output</div>
+      <div class="value warn" id="hybridPwm">0</div>
+      <div class="unit">PWM value / 255</div>
+    </section>
+
+    <section class="card span-3">
+      <div class="metric-title">Remaining Fiber Light</div>
+      <div class="value violet" id="fiberRemaining">0.00</div>
+      <div class="unit">mol/m² remaining today</div>
+    </section>
+
+    <section class="card span-3">
+      <div class="metric-title">pH Level</div>
+      <div class="value good" id="phLevel">0.00</div>
+      <div class="unit">nutrient solution pH</div>
+    </section>
+
+    <section class="card span-3">
+      <div class="metric-title">Water Level</div>
+      <div class="value blue" id="waterLevel">0</div>
+      <div class="unit">reservoir level %</div>
+    </section>
+
+    <section class="card span-3">
+      <div class="metric-title">Full LED Brightness</div>
+      <div class="value warn" id="fullBrightnessReadout">255</div>
+      <div class="unit">manual PWM value / 255</div>
+    </section>
+
+    <section class="card span-3">
+      <div class="metric-title">Target DLI</div>
+      <div class="value blue">18.00</div>
+      <div class="unit">mol/m²/day</div>
+    </section>
+
+    <section class="card span-4">
+      <h3>Hybrid System</h3>
+      <div class="metric-title">Fiber Light + Hybrid LED DLI Today</div>
+      <div class="value good" id="dliHybrid">0.00</div>
+      <div class="unit">mol/m²/day</div>
+      <div class="progress"><div class="bar" id="hybridBar"></div></div>
+      <p class="status-line" id="hybridStatus">Calculating...</p>
+    </section>
+
+    <section class="card span-4">
+      <h3>Full LED System</h3>
+      <div class="metric-title">LED-only DLI Today</div>
+      <div class="value blue" id="dliFull">0.00</div>
+      <div class="unit">mol/m²/day</div>
+      <div class="progress"><div class="bar" id="fullBar"></div></div>
+      <p class="status-line" id="fullStatus">Calculating...</p>
+    </section>
+
+    <section class="card span-4">
+      <h3>LED Energy</h3>
+      <div class="metric-title">Estimated Hybrid LED Energy Today</div>
+      <div class="value warn" id="kwhHybrid">0.000</div>
+      <div class="unit">kWh</div>
+      <p class="status-line">LED-only energy today: <b id="kwhFull">0.000</b> kWh</p>
+      <p class="status-line">Hybrid LED DLI supplied: <b id="hybridLedDli">0.00</b> mol/m²/day</p>
+      <p class="status-line">Full LED DLI supplied: <b id="fullLedDli">0.00</b> mol/m²/day</p>
+      <p class="status-line">Additional DLI needed to reach target: <b id="dliNeeded">0.00</b> mol/m²/day</p>
+    </section>
+
+    <section class="card span-8">
+      <h3>Today's DLI Curve</h3>
+      <canvas id="dliChart" height="120"></canvas>
+    </section>
+
+    <section class="card span-4">
+      <h3>Full LED Manual Control</h3>
+      <label>Brightness</label>
+      <input id="fullLedBrightnessControl" type="range" min="0" max="255" value="255" oninput="updateFullLedControlText()" />
+      <p class="status-line">Brightness value: <b id="fullLedBrightnessText">255</b> / 255</p>
+
+      <div class="row">
+        <div>
+          <label>ON Hour</label>
+          <input id="fullLedOnHour" type="number" min="0" max="23" value="7" />
+        </div>
+        <div>
+          <label>OFF Hour</label>
+          <input id="fullLedOffHour" type="number" min="0" max="23" value="21" />
+        </div>
+      </div>
+
+      <button onclick="saveFullLedControls()">Apply Full LED Settings</button>
+      <p class="status-line" id="fullLedControlStatus">Full LED settings ready.</p>
+    </section>
+  </main>
+
+  <main id="calibrationPage" class="grid hidden">
+    <section class="card span-12">
+      <h2>Sensor Calibration</h2>
+      <p class="subtitle">Adjust the displayed sensor readings and LED calibration values.</p>
+    </section>
+
+    <section class="card span-6">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+        <h3>Light Sensor Calibration</h3>
+        <button title="Fiber PPFD efficiency" onclick="toggleEfficiencyCalibration()" style="width:28px;height:24px;padding:0;margin:0;border-radius:7px;font-size:12px;line-height:1;">%</button>
+      </div>
+      <div id="efficiencyCalibrationBox" class="hidden">
+        <label>Fiber PPFD Efficiency</label>
+        <input id="calFiberEfficiency" type="number" min="0" max="1" step="0.001" value="0.250" />
+        <p class="small">Default value is 0.25. This is the direct-sunlight delivery efficiency through the fiber.</p>
+      </div>
+
+      <label>Fiber Lux Multiplier</label>
+      <input id="calFiberLux" type="number" step="0.001" value="1.000" />
+
+      <label>Fiber PPFD Multiplier</label>
+      <input id="calFiberPpfd" type="number" step="0.001" value="1.000" />
+
+      <label>Fiber Lux Offset</label>
+      <input id="calFiberLuxOffset" type="number" step="0.1" value="0" />
+
+      <label>Fiber PPFD Offset</label>
+      <input id="calFiberPpfdOffset" type="number" step="0.1" value="0" />
+    </section>
+
+    <section class="card span-6">
+      <h3>Water and pH Calibration</h3>
+      <label>pH Offset</label>
+      <input id="calPH" type="number" step="0.01" value="0.00" />
+
+      <label>Water Level Offset</label>
+      <input id="calWater" type="number" step="0.1" value="0" />
+
+      <label>pH Display Multiplier</label>
+      <input id="calPHMultiplier" type="number" step="0.001" value="1.000" />
+
+      <label>Water Display Multiplier</label>
+      <input id="calWaterMultiplier" type="number" step="0.001" value="1.000" />
+    </section>
+
+    <section class="card span-6">
+      <h3>LED Calibration</h3>
+      <label>LED Maximum PPFD at 255 PWM</label>
+      <input id="calLedMaxPpfd" type="number" step="0.01" value="204.43" />
+
+      <label>LED Energy at 18 DLI</label>
+      <input id="calLedEnergy" type="number" step="0.000001" value="0.332445" />
+
+      <label>Hybrid Lux Setpoint</label>
+      <input id="calLuxSetpoint" type="number" step="100" value="10000" />
+    </section>
+
+    <section class="card span-6">
+      <h3>Calibration Actions</h3>
+      <button onclick="saveCalibration()">Save Calibration</button>
+      <button class="secondary" onclick="resetCalibration()">Reset Calibration</button>
+      <button class="secondary" onclick="showPage('dashboardPage')">Return to Dashboard</button>
+      <p class="status-line" id="calibrationStatus">Calibration values ready.</p>
+    </section>
+  </main>
+
+  <script>
+    const FIXED_LATITUDE = 9.755446;
+    const FIXED_LONGITUDE = 118.745955;
+    const TARGET_DLI = 18;
+    let fiberEfficiency = 0.25;
+    const LIGHT_ON_HOUR = 7;
+    const LIGHT_OFF_HOUR = 21;
+
+    let luxSetpoint = 10000;
+    let ledMaxPpfd = 204.43;
+    let ledEnergyAt18Dli = 0.332445;
+    let fullLedOnHourValue = 7;
+    let fullLedOffHourValue = 21;
+    let fullLedBrightnessValue = 255;
+
+    const calibration = {
+      fiberLuxMultiplier: 1.000,
+      fiberPpfdMultiplier: 1.000,
+      fiberLuxOffset: 0,
+      fiberPpfdOffset: 0,
+      phOffset: 0,
+      waterOffset: 0,
+      phMultiplier: 1.000,
+      waterMultiplier: 1.000
+    };
+
+    const state = {
+      chart: null,
+      lastFetchMs: 0,
+      lightData: null,
+      sim: null
+    };
+
+    function showPage(pageId) {
+      dashboardPage.classList.toggle("hidden", pageId !== "dashboardPage");
+      calibrationPage.classList.toggle("hidden", pageId !== "calibrationPage");
+      if (pageId === "dashboardPage") renderAll();
+    }
+
+    function clamp(v, min, max) {
+      return Math.min(max, Math.max(min, v));
+    }
+
+    function fmt(n, d = 2) {
+      if (!Number.isFinite(n)) return "0";
+      return Number(n).toLocaleString(undefined, { maximumFractionDigits: d, minimumFractionDigits: d });
+    }
+
+    function updateClock() {
+      const now = new Date();
+      clock.textContent = now.toLocaleTimeString();
+      dateText.textContent = now.toLocaleDateString(undefined, {
+        weekday: "long",
+        year: "numeric",
+        month: "long",
+        day: "numeric"
+      });
+    }
+
+    function loadFullLedControls() {
+      fullLedBrightnessValue = Number(localStorage.getItem("fullLedBrightnessValue") ?? 255);
+      fullLedOnHourValue = Number(localStorage.getItem("fullLedOnHourValue") ?? 7);
+      fullLedOffHourValue = Number(localStorage.getItem("fullLedOffHourValue") ?? 21);
+
+      fullLedBrightnessControl.value = fullLedBrightnessValue;
+      fullLedOnHour.value = fullLedOnHourValue;
+      fullLedOffHour.value = fullLedOffHourValue;
+      updateFullLedControlText();
+    }
+
+    function updateFullLedControlText() {
+      const value = Number(fullLedBrightnessControl.value);
+      fullLedBrightnessText.textContent = value;
+      fullBrightnessReadout.textContent = value;
+    }
+
+    function saveFullLedControls() {
+      fullLedBrightnessValue = clamp(Number(fullLedBrightnessControl.value), 0, 255);
+      fullLedOnHourValue = clamp(Number(fullLedOnHour.value), 0, 23);
+      fullLedOffHourValue = clamp(Number(fullLedOffHour.value), 0, 23);
+
+      localStorage.setItem("fullLedBrightnessValue", fullLedBrightnessValue);
+      localStorage.setItem("fullLedOnHourValue", fullLedOnHourValue);
+      localStorage.setItem("fullLedOffHourValue", fullLedOffHourValue);
+
+      fullLedControlStatus.textContent = "Full LED settings applied: " + fullLedBrightnessValue + " / 255, " + String(fullLedOnHourValue).padStart(2, "0") + ":00 to " + String(fullLedOffHourValue).padStart(2, "0") + ":00.";
+      renderAll();
+    }
+
+    function loadCalibration() {
+      calibration.fiberLuxMultiplier = Number(localStorage.getItem("calFiberLux") ?? 1.000);
+      calibration.fiberPpfdMultiplier = Number(localStorage.getItem("calFiberPpfd") ?? 1.000);
+      calibration.fiberLuxOffset = Number(localStorage.getItem("calFiberLuxOffset") ?? 0);
+      calibration.fiberPpfdOffset = Number(localStorage.getItem("calFiberPpfdOffset") ?? 0);
+      calibration.phOffset = Number(localStorage.getItem("calPH") ?? 0);
+      calibration.waterOffset = Number(localStorage.getItem("calWater") ?? 0);
+      calibration.phMultiplier = Number(localStorage.getItem("calPHMultiplier") ?? 1.000);
+      calibration.waterMultiplier = Number(localStorage.getItem("calWaterMultiplier") ?? 1.000);
+      ledMaxPpfd = Number(localStorage.getItem("calLedMaxPpfd") ?? 204.43);
+      ledEnergyAt18Dli = Number(localStorage.getItem("calLedEnergy") ?? 0.332445);
+      luxSetpoint = Number(localStorage.getItem("calLuxSetpoint") ?? 10000);
+      fiberEfficiency = Number(localStorage.getItem("calFiberEfficiency") ?? 0.25);
+
+      calFiberLux.value = calibration.fiberLuxMultiplier;
+      calFiberPpfd.value = calibration.fiberPpfdMultiplier;
+      calFiberLuxOffset.value = calibration.fiberLuxOffset;
+      calFiberPpfdOffset.value = calibration.fiberPpfdOffset;
+      calPH.value = calibration.phOffset;
+      calWater.value = calibration.waterOffset;
+      calPHMultiplier.value = calibration.phMultiplier;
+      calWaterMultiplier.value = calibration.waterMultiplier;
+      calLedMaxPpfd.value = ledMaxPpfd;
+      calLedEnergy.value = ledEnergyAt18Dli;
+      calLuxSetpoint.value = luxSetpoint;
+      calFiberEfficiency.value = fiberEfficiency;
+    }
+
+    function toggleEfficiencyCalibration() {
+      efficiencyCalibrationBox.classList.toggle("hidden");
+    }
+
+    function saveCalibration() {
+      calibration.fiberLuxMultiplier = Number(calFiberLux.value || 1);
+      calibration.fiberPpfdMultiplier = Number(calFiberPpfd.value || 1);
+      calibration.fiberLuxOffset = Number(calFiberLuxOffset.value || 0);
+      calibration.fiberPpfdOffset = Number(calFiberPpfdOffset.value || 0);
+      calibration.phOffset = Number(calPH.value || 0);
+      calibration.waterOffset = Number(calWater.value || 0);
+      calibration.phMultiplier = Number(calPHMultiplier.value || 1);
+      calibration.waterMultiplier = Number(calWaterMultiplier.value || 1);
+      ledMaxPpfd = Number(calLedMaxPpfd.value || 204.43);
+      ledEnergyAt18Dli = Number(calLedEnergy.value || 0.332445);
+      luxSetpoint = Number(calLuxSetpoint.value || 10000);
+      fiberEfficiency = clamp(Number(calFiberEfficiency.value || 0.25), 0, 1);
+
+      localStorage.setItem("calFiberLux", calibration.fiberLuxMultiplier);
+      localStorage.setItem("calFiberPpfd", calibration.fiberPpfdMultiplier);
+      localStorage.setItem("calFiberLuxOffset", calibration.fiberLuxOffset);
+      localStorage.setItem("calFiberPpfdOffset", calibration.fiberPpfdOffset);
+      localStorage.setItem("calPH", calibration.phOffset);
+      localStorage.setItem("calWater", calibration.waterOffset);
+      localStorage.setItem("calPHMultiplier", calibration.phMultiplier);
+      localStorage.setItem("calWaterMultiplier", calibration.waterMultiplier);
+      localStorage.setItem("calLedMaxPpfd", ledMaxPpfd);
+      localStorage.setItem("calLedEnergy", ledEnergyAt18Dli);
+      localStorage.setItem("calLuxSetpoint", luxSetpoint);
+      localStorage.setItem("calFiberEfficiency", fiberEfficiency);
+
+      calibrationStatus.textContent = "Calibration saved successfully.";
+      renderAll();
+    }
+
+    function resetCalibration() {
+      const keys = [
+        "calFiberLux", "calFiberPpfd", "calFiberLuxOffset", "calFiberPpfdOffset",
+        "calPH", "calWater", "calPHMultiplier", "calWaterMultiplier",
+        "calLedMaxPpfd", "calLedEnergy", "calLuxSetpoint", "calFiberEfficiency"
+      ];
+      keys.forEach(k => localStorage.removeItem(k));
+      loadCalibration();
+      calibrationStatus.textContent = "Calibration reset to default values.";
+      renderAll();
+    }
+
+    function updateWaterAndPH() {
+      const now = new Date();
+      const minutes = now.getHours() * 60 + now.getMinutes();
+      const slowCycle = Math.sin(minutes / 1440 * Math.PI * 2);
+      const fasterCycle = Math.sin(minutes / 180 * Math.PI * 2);
+
+      const phRaw = 6.2 + slowCycle * 0.18 + fasterCycle * 0.04;
+      const waterRaw = 76 - (minutes / 1440) * 8 + Math.sin(minutes / 240 * Math.PI * 2) * 2;
+
+      const ph = clamp((phRaw * calibration.phMultiplier) + calibration.phOffset, 5.0, 8.5);
+      const water = clamp((waterRaw * calibration.waterMultiplier) + calibration.waterOffset, 0, 100);
+
+      phLevel.textContent = fmt(ph, 2);
+      waterLevel.textContent = fmt(water, 0);
+
+      phLevel.className = ph < 5.5 || ph > 6.8 ? "value bad" : "value good";
+      waterLevel.className = water < 30 ? "value bad" : water < 50 ? "value warn" : "value blue";
+    }
+
+    async function fetchLightData(force = false) {
+      const now = Date.now();
+      if (!force && now - state.lastFetchMs < 5 * 60 * 1000) return;
+
+      connectionPill.textContent = "Updating light data";
+      connectionPill.className = "pill warn-pill";
+
+      const url = new URL("https://api.open-meteo.com/v1/satellite-radiation");
+      url.searchParams.set("latitude", FIXED_LATITUDE);
+      url.searchParams.set("longitude", FIXED_LONGITUDE);
+      url.searchParams.set("timezone", "auto");
+      url.searchParams.set("hourly", "shortwave_radiation,shortwave_radiation_instant,is_day");
+      url.searchParams.set("past_days", "1");
+      url.searchParams.set("forecast_days", "1");
+      url.searchParams.set("temporal_resolution", "native");
+
+      try {
+        const res = await fetch(url.toString());
+        if (!res.ok) throw new Error("Light data unavailable");
+        state.lightData = await res.json();
+        state.lastFetchMs = now;
+        lastUpdate.textContent = "Last light update: " + new Date().toLocaleTimeString();
+        connectionPill.textContent = "Live light data active";
+        connectionPill.className = "pill";
+        renderAll();
+      } catch (err) {
+        connectionPill.textContent = "Light data error";
+        connectionPill.className = "pill warn-pill";
+        lastUpdate.textContent = "Unable to update light data. Please check internet connection.";
+      }
+    }
+
+    function parseDataTime(t) {
+      return new Date(t.length === 16 ? t + ":00" : t);
+    }
+
+    function getCurrentRadiation() {
+      if (!state.lightData) return 0;
+      const h = state.lightData.hourly;
+      if (!h || !h.time?.length) return 0;
+
+      const now = new Date().getTime();
+      let bestIndex = -1;
+      let bestTime = -Infinity;
+
+      h.time.forEach((t, i) => {
+        const tm = parseDataTime(t).getTime();
+        const avg = h.shortwave_radiation?.[i];
+        if (tm <= now && tm > bestTime && Number.isFinite(Number(avg))) {
+          bestTime = tm;
+          bestIndex = i;
+        }
+      });
+
+      if (bestIndex < 0) bestIndex = h.time.length - 1;
+
+      const instant = h.shortwave_radiation_instant?.[bestIndex];
+      const average = h.shortwave_radiation?.[bestIndex];
+      const value = Number.isFinite(Number(instant)) ? instant : average;
+      return Math.max(0, Number(value) || 0);
+    }
+
+    function radiationAt(timeMs) {
+      const h = state.lightData?.hourly;
+      if (!h || !h.time?.length) return 0;
+
+      const times = h.time.map(t => parseDataTime(t).getTime());
+      const values = h.shortwave_radiation.map(v => Math.max(0, Number(v) || 0));
+
+      if (timeMs <= times[0]) return values[0];
+      if (timeMs >= times[times.length - 1]) return values[values.length - 1];
+
+      for (let i = 0; i < times.length - 1; i++) {
+        if (timeMs >= times[i] && timeMs <= times[i + 1]) {
+          const f = (timeMs - times[i]) / (times[i + 1] - times[i]);
+          return values[i] + (values[i + 1] - values[i]) * f;
+        }
+      }
+      return 0;
+    }
+
+    function isHybridLightWindow(date) {
+      const h = date.getHours() + date.getMinutes() / 60;
+      if (LIGHT_ON_HOUR === LIGHT_OFF_HOUR) return true;
+      if (LIGHT_ON_HOUR < LIGHT_OFF_HOUR) return h >= LIGHT_ON_HOUR && h < LIGHT_OFF_HOUR;
+      return h >= LIGHT_ON_HOUR || h < LIGHT_OFF_HOUR;
+    }
+
+    function isFullLedWindow(date) {
+      const h = date.getHours() + date.getMinutes() / 60;
+      if (fullLedOnHourValue === fullLedOffHourValue) return true;
+      if (fullLedOnHourValue < fullLedOffHourValue) return h >= fullLedOnHourValue && h < fullLedOffHourValue;
+      return h >= fullLedOnHourValue || h < fullLedOffHourValue;
+    }
+
+    function simulateToday() {
+      if (!state.lightData) return null;
+
+      const now = new Date();
+      const start = new Date(now);
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(now);
+      end.setHours(23, 59, 59, 999);
+
+      const dtSec = 300;
+      const dtMs = dtSec * 1000;
+      const ledKwhPerDli = ledEnergyAt18Dli / 18;
+      const fullLedFraction = fullLedBrightnessValue / 255;
+
+      let fiberDli = 0;
+      let hybridDli = 0;
+      let fullDli = 0;
+      let hybridLedDli = 0;
+      let fullLedDli = 0;
+      let currentHybridFraction = 0;
+      let currentFiberLux = 0;
+      let currentFiberPpfd = 0;
+
+      const labels = [];
+      const fiberSeries = [];
+      const hybridSeries = [];
+      const fullSeries = [];
+
+      for (let t = start.getTime(); t <= now.getTime(); t += dtMs) {
+        const d = new Date(t);
+        const radiation = radiationAt(t);
+        const lightInputLux = radiation * 120;
+        const lightInputPpfd = radiation * 1.96;
+        const fiberLuxValue = Math.max(0, (lightInputLux * fiberEfficiency * calibration.fiberLuxMultiplier) + calibration.fiberLuxOffset);
+        const fiberPpfdValue = Math.max(0, (lightInputPpfd * fiberEfficiency * calibration.fiberPpfdMultiplier) + calibration.fiberPpfdOffset);
+        const lightOn = isHybridLightWindow(d);
+
+        let hybridLedFraction = 0;
+        let hybridLedPpfd = 0;
+        let fullLedPpfd = 0;
+
+        if (lightOn) {
+          const luxDeficit = Math.max(0, luxSetpoint - fiberLuxValue);
+          hybridLedFraction = luxSetpoint > 0 ? clamp(luxDeficit / luxSetpoint, 0, 1) : 0;
+          hybridLedPpfd = ledMaxPpfd * hybridLedFraction;
+        }
+
+        if (isFullLedWindow(d)) {
+          fullLedPpfd = ledMaxPpfd * fullLedFraction;
+        }
+
+        fiberDli += fiberPpfdValue * dtSec / 1_000_000;
+        hybridDli += (fiberPpfdValue + hybridLedPpfd) * dtSec / 1_000_000;
+        fullDli += fullLedPpfd * dtSec / 1_000_000;
+        hybridLedDli += hybridLedPpfd * dtSec / 1_000_000;
+        fullLedDli += fullLedPpfd * dtSec / 1_000_000;
+
+        currentHybridFraction = hybridLedFraction;
+        currentFiberLux = fiberLuxValue;
+        currentFiberPpfd = fiberPpfdValue;
+
+        if (d.getMinutes() === 0 || t + dtMs > now.getTime()) {
+          labels.push(d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
+          fiberSeries.push(Number(fiberDli.toFixed(2)));
+          hybridSeries.push(Number(hybridDli.toFixed(2)));
+          fullSeries.push(Number(fullDli.toFixed(2)));
+        }
+      }
+
+      let remainingFiberDli = 0;
+      for (let t = now.getTime(); t <= end.getTime(); t += dtMs) {
+        const radiation = radiationAt(t);
+        const fiberPpfdValue = Math.max(0, (radiation * 1.96 * fiberEfficiency * calibration.fiberPpfdMultiplier) + calibration.fiberPpfdOffset);
+        remainingFiberDli += fiberPpfdValue * dtSec / 1_000_000;
+      }
+
+      const hybridKwh = hybridLedDli * ledKwhPerDli;
+      const fullKwh = fullLedDli * ledKwhPerDli;
+      const dliStillNeeded = Math.max(0, TARGET_DLI - hybridDli);
+
+      return {
+        fiberDli,
+        hybridDli,
+        fullDli,
+        hybridLedDli,
+        fullLedDli,
+        hybridKwh,
+        fullKwh,
+        remainingFiberDli,
+        dliStillNeeded,
+        currentHybridFraction,
+        currentFiberLux,
+        currentFiberPpfd,
+        chart: { labels, fiberSeries, hybridSeries, fullSeries }
+      };
+    }
+
+    function renderChart(sim) {
+      const ctx = document.getElementById("dliChart");
+      if (state.chart) state.chart.destroy();
+      state.chart = new Chart(ctx, {
+        type: "line",
+        data: {
+          labels: sim.chart.labels,
+          datasets: [
+            { label: "Fiber Light DLI", data: sim.chart.fiberSeries, borderWidth: 2, tension: 0.25 },
+            { label: "Hybrid System DLI", data: sim.chart.hybridSeries, borderWidth: 3, tension: 0.25 },
+            { label: "Full LED DLI", data: sim.chart.fullSeries, borderWidth: 2, tension: 0.25 }
+          ]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { labels: { color: "#e5e7eb" } }
+          },
+          scales: {
+            x: {
+              ticks: { color: "#94a3b8" },
+              grid: { color: "rgba(255,255,255,0.05)" }
+            },
+            y: {
+              ticks: { color: "#94a3b8" },
+              grid: { color: "rgba(255,255,255,0.05)" },
+              beginAtZero: true
+            }
+          }
+        }
+      });
+    }
+
+    function renderAll() {
+      if (!state.lightData) return;
+      const sim = simulateToday();
+      if (!sim) return;
+      state.sim = sim;
+
+      fiberLux.textContent = fmt(sim.currentFiberLux, 0);
+      fiberPpfd.textContent = fmt(sim.currentFiberPpfd, 0);
+      dliHybrid.textContent = fmt(sim.hybridDli, 2);
+      dliFull.textContent = fmt(sim.fullDli, 2);
+      kwhHybrid.textContent = fmt(sim.hybridKwh, 3);
+      kwhFull.textContent = fmt(sim.fullKwh, 3);
+      hybridLedDli.textContent = fmt(sim.hybridLedDli, 2);
+      fullLedDli.textContent = fmt(sim.fullLedDli, 2);
+      fiberRemaining.textContent = fmt(sim.remainingFiberDli, 2);
+      dliNeeded.textContent = fmt(sim.dliStillNeeded, 2);
+
+      const pwm = Math.round(sim.currentHybridFraction * 255);
+      hybridPwm.textContent = pwm;
+
+      const hybridPct = TARGET_DLI > 0 ? clamp(sim.hybridDli / TARGET_DLI * 100, 0, 100) : 0;
+      const fullPct = TARGET_DLI > 0 ? clamp(sim.fullDli / TARGET_DLI * 100, 0, 100) : 0;
+      hybridBar.style.width = hybridPct + "%";
+      fullBar.style.width = fullPct + "%";
+
+      hybridStatus.textContent = `${fmt(hybridPct,1)}% of target. Fiber lux: ${fmt(sim.currentFiberLux,0)} / ${fmt(luxSetpoint,0)} lux. Fiber DLI today: ${fmt(sim.fiberDli,2)}. LED and fiber light are counted simultaneously.`;
+      fullStatus.textContent = `${fmt(fullPct,1)}% of target. Manual brightness: ${fullLedBrightnessValue} / 255. Timer: ${String(fullLedOnHourValue).padStart(2, "0")}:00 to ${String(fullLedOffHourValue).padStart(2, "0")}:00.`;
+      updateWaterAndPH();
+
+      renderChart(sim);
+    }
+
+    function boot() {
+      loadCalibration();
+      loadFullLedControls();
+      updateClock();
+      updateWaterAndPH();
+      setInterval(updateClock, 1000);
+      setInterval(updateWaterAndPH, 1000);
+      fetchLightData(true);
+      setInterval(() => fetchLightData(false), 30 * 1000);
+      setInterval(() => renderAll(), 10 * 1000);
+    }
+
+    boot();
+  </script>
+</body>
+</html>
