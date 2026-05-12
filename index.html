@@ -446,7 +446,8 @@
       const state = {
         chart: null,
         lastFetchMs: 0,
-        lightData: null
+        lightData: null,
+        liveRadiation: 0
       };
 
       function setText(id, text) {
@@ -678,29 +679,7 @@
         forecastUrl.searchParams.set("past_days", "1");
         forecastUrl.searchParams.set("forecast_days", "2");
 
-        const today = new Date();
-        const yesterday = new Date(today);
-        yesterday.setDate(today.getDate() - 1);
-
-        const satelliteUrl = new URL("https://satellite-api.open-meteo.com/v1/archive");
-        satelliteUrl.searchParams.set("latitude", FIXED_LATITUDE);
-        satelliteUrl.searchParams.set("longitude", FIXED_LONGITUDE);
-        satelliteUrl.searchParams.set("timezone", "Asia/Manila");
-        satelliteUrl.searchParams.set("timeformat", "unixtime");
-        satelliteUrl.searchParams.set("hourly", "shortwave_radiation");
-        satelliteUrl.searchParams.set("start_date", formatDateKey(yesterday));setText("lastUpdate", "Last light update: " + new Date().toLocaleTimeString());
-        setPill("Live light data active", "ok");
-        renderAll();
-
-        const radiationCheck = getCurrentRadiation();
-        if (radiationCheck <= 0) {
-          setText("lastUpdate", "Light update received, but current light intensity is zero or unavailable for this timestamp.");
-        }ss");
-        safunction parseDataTime(t) {
-        if (typeof t === "number") return new Date(t * 1000);
-        if (!t) return new Date(NaN);
-        return new Date(t.length === 16 ? t + ":00" : t);
-      }a) data = await tryFetchJson(satelliteUrl);
+        const data = await tryFetchJson(forecastUrl);
 
         if (!data) {
           setPill("Light data unavailable", "bad");
@@ -708,23 +687,29 @@
           return;
         }
 
+        const currentRadiation = Number(data.current?.shortwave_radiation);
+        state.liveRadiation = Number.isFinite(currentRadiation) ? Math.max(0, currentRadiation) : 0;
         state.lightData = data;
         state.lastFetchMs = now;
+
+        updateLiveLightCards();
         setText("lastUpdate", "Last light update: " + new Date().toLocaleTimeString());
         setPill("Live light data active", "ok");
         renderAll();
       }
 
       function parseDataTime(t) {
+        if (typeof t === "number") return new Date(t * 1000);
         if (!t) return new Date(NaN);
         return new Date(t.length === 16 ? t + ":00" : t);
       }
 
       function getCurrentRadiation() {
+        if (state.liveRadiation > 0) return state.liveRadiation;
         if (!state.lightData) return 0;
 
         const currentValue = Number(state.lightData.current?.shortwave_radiation);
-        if (Number.isFinite(currentValue) && currentValue > 0) return Math.max(0, currentValue);
+        if (Number.isFinite(currentValue)) return Math.max(0, currentValue);
 
         const h = state.lightData.hourly;
         if (!h || !h.time?.length) return 0;
@@ -889,6 +874,15 @@
         };
       }
 
+      function updateLiveLightCards() {
+        const radiation = getCurrentRadiation();
+        const liveFiberLux = Math.max(0, (radiation * 120 * fiberEfficiency * calibration.fiberLuxMultiplier) + calibration.fiberLuxOffset);
+        const liveFiberPpfd = Math.max(0, (radiation * 1.96 * fiberEfficiency * calibration.fiberPpfdMultiplier) + calibration.fiberPpfdOffset);
+
+        setText("fiberLux", fmt(liveFiberLux, 0));
+        setText("fiberPpfd", fmt(liveFiberPpfd, 0));
+      }
+
       function renderChart(sim) {
         if (!window.Chart) {
           setText("chartNotice", "Chart library unavailable. Numeric readings are still active.");
@@ -925,8 +919,7 @@
         const sim = simulateToday();
         if (!sim) return;
 
-        setText("fiberLux", fmt(sim.currentFiberLux, 0));
-        setText("fiberPpfd", fmt(sim.currentFiberPpfd, 0));
+        updateLiveLightCards();
         setText("dliHybrid", fmt(sim.hybridDli, 2));
         setText("dliFull", fmt(sim.fullDli, 2));
         setText("kwhHybrid", fmt(sim.hybridKwh, 3));
