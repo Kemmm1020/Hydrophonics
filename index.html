@@ -66,7 +66,7 @@
 
   <main id="calibrationPage" class="grid hidden">
     <section class="card span-12"><h2>Sensor Calibration</h2><p class="subtitle">Adjust the displayed sensor readings and LED calibration values.</p></section>
-    <section class="card span-6"><div style="display:flex;align-items:center;justify-content:space-between;gap:8px"><h3>Light Sensor Calibration</h3><button id="efficiencyBtn" title="Fiber PPFD efficiency" style="width:28px;height:24px;padding:0;margin:0;border-radius:7px;font-size:12px;line-height:1">%</button></div><div id="efficiencyCalibrationBox" class="hidden"><label>Fiber PPFD Efficiency</label><input id="calFiberEfficiency" type="number" min="0" max="1" step="0.001" value="0.250"><p class="small">Default value is 0.25. This is the direct-sunlight delivery efficiency through the fiber.</p></div><label>Fiber Lux Multiplier</label><input id="calFiberLux" type="number" step="0.000001" value="0.073945"><label>Fiber PPFD Multiplier</label><input id="calFiberPpfd" type="number" step="0.000001" value="0.382775"><label>Fiber Lux Offset</label><input id="calFiberLuxOffset" type="number" step="0.1" value="0"><label>Fiber PPFD Offset</label><input id="calFiberPpfdOffset" type="number" step="0.1" value="0"></section>
+    <section class="card span-6"><div style="display:flex;align-items:center;justify-content:space-between;gap:8px"><h3>Light Sensor Calibration</h3><button id="efficiencyBtn" title="Fiber PPFD efficiency" style="width:28px;height:24px;padding:0;margin:0;border-radius:7px;font-size:12px;line-height:1">%</button></div><div id="efficiencyCalibrationBox" class="hidden"><label>Fiber PPFD Efficiency</label><input id="calFiberEfficiency" type="number" min="0" max="1" step="0.001" value="0.250"><p class="small">Default value is 0.25. This is the direct-sunlight delivery efficiency through the fiber.</p></div><label>Fiber Lux Multiplier</label><input id="calFiberLux" type="number" step="0.000001" value="0.073945"><label>Fiber PPFD Multiplier</label><input id="calFiberPpfd" type="number" step="0.000001" value="0.295508"><label>Fiber Lux Offset</label><input id="calFiberLuxOffset" type="number" step="0.1" value="0"><label>Fiber PPFD Offset</label><input id="calFiberPpfdOffset" type="number" step="0.1" value="0"></section>
     <section class="card span-6"><h3>Water and pH Calibration</h3><label>pH Offset</label><input id="calPH" type="number" step="0.01" value="0.00"><label>Water Level Offset</label><input id="calWater" type="number" step="0.1" value="0"><label>pH Display Multiplier</label><input id="calPHMultiplier" type="number" step="0.001" value="1.000"><label>Water Display Multiplier</label><input id="calWaterMultiplier" type="number" step="0.001" value="1.000"></section>
     <section class="card span-6"><h3>LED Calibration</h3><label>Hybrid LED Maximum PPFD at 255 PWM</label><input id="calHybridLedMaxPpfd" type="number" step="0.01" value="204.43"><label>Full LED Maximum PPFD at 255 PWM</label><input id="calFullLedMaxPpfd" type="number" step="0.01" value="204.43"><label>LED Energy at 18 DLI</label><input id="calLedEnergy" type="number" step="0.000001" value="0.332445"><label>Hybrid Lux Setpoint</label><input id="calLuxSetpoint" type="number" step="100" value="10000"></section>
     <section class="card span-6"><h3>Calibration Actions</h3><button id="saveCalibrationBtn">Save Calibration</button><button class="secondary" id="resetCalibrationBtn">Reset Calibration</button><button class="secondary" id="returnDashboardBtn">Return to Dashboard</button><p class="status-line" id="calibrationStatus">Calibration values ready.</p></section>
@@ -82,8 +82,8 @@
 
       var fiberEfficiency = 0.25;
       var DEFAULT_FIBER_LUX_MULTIPLIER = 0.073945;
-      var DEFAULT_FIBER_PPFD_MULTIPLIER = 0.382775;
-      var CALIBRATION_PRESET_VERSION = "fiber_dli_4p8_lux_850_v1";
+      var DEFAULT_FIBER_PPFD_MULTIPLIER = 0.295508;
+      var CALIBRATION_PRESET_VERSION = "fiber_dli_4p8_lux_850_ppfd55p56_v2";
       var luxSetpoint = 10000;
       var hybridLedMaxPpfd = 204.43;
       var fullLedMaxPpfd = 204.43;
@@ -352,7 +352,7 @@
         var luxMultiplier = safePositive(calibration.fiberLuxMultiplier, DEFAULT_FIBER_LUX_MULTIPLIER);
         var ppfdMultiplier = safePositive(calibration.fiberPpfdMultiplier, DEFAULT_FIBER_PPFD_MULTIPLIER);
         var fiberLux = Math.max(0, liveRadiation * 120 * fiberEfficiency * luxMultiplier + calibration.fiberLuxOffset);
-        var fiberPpfd = fiberLux > 0 ? Math.max(0, liveRadiation * 1.96 * fiberEfficiency * ppfdMultiplier + calibration.fiberPpfdOffset) : 0;
+        var fiberPpfd = Math.round(fiberLux) > 0 && liveRadiation > 0 ? Math.max(0, liveRadiation * 1.96 * fiberEfficiency * ppfdMultiplier + calibration.fiberPpfdOffset) : 0;
         setText("fiberLux", fmt(fiberLux, 0));
         setText("fiberPpfd", fmt(fiberPpfd, 0));
       }
@@ -389,7 +389,7 @@
           var luxMultiplier = safePositive(calibration.fiberLuxMultiplier, DEFAULT_FIBER_LUX_MULTIPLIER);
           var ppfdMultiplier = safePositive(calibration.fiberPpfdMultiplier, DEFAULT_FIBER_PPFD_MULTIPLIER);
           var fiberLux = Math.max(0, rad * 120 * fiberEfficiency * luxMultiplier + calibration.fiberLuxOffset);
-          var fiberPpfd = fiberLux > 0 ? Math.max(0, rad * 1.96 * fiberEfficiency * ppfdMultiplier + calibration.fiberPpfdOffset) : 0;
+          var fiberPpfd = Math.round(fiberLux) > 0 && rad > 0 ? Math.max(0, rad * 1.96 * fiberEfficiency * ppfdMultiplier + calibration.fiberPpfdOffset) : 0;
           luxSum += fiberLux;
           ppfdSum += fiberPpfd;
           sampleCount += 1;
@@ -442,12 +442,39 @@
           var luxMultiplier = safePositive(calibration.fiberLuxMultiplier, DEFAULT_FIBER_LUX_MULTIPLIER);
           var ppfdMultiplier = safePositive(calibration.fiberPpfdMultiplier, DEFAULT_FIBER_PPFD_MULTIPLIER);
           var predictedLux = Math.max(0, r * 120 * fiberEfficiency * luxMultiplier + calibration.fiberLuxOffset);
-          var ppfd = predictedLux > 0 ? Math.max(0, r * 1.96 * fiberEfficiency * ppfdMultiplier + calibration.fiberPpfdOffset) : 0;
+          var ppfd = Math.round(predictedLux) > 0 && r > 0 ? Math.max(0, r * 1.96 * fiberEfficiency * ppfdMultiplier + calibration.fiberPpfdOffset) : 0;
           remainingFiberDli += ppfd * dtSec / 1000000;
         }
 
         var liveLuxMultiplier = safePositive(calibration.fiberLuxMultiplier, DEFAULT_FIBER_LUX_MULTIPLIER);
         var liveFiberLux = Math.max(0, liveRadiation * 120 * fiberEfficiency * liveLuxMultiplier + calibration.fiberLuxOffset);
+
+        var dailyLuxSum = 0;
+        var dailyPpfdSum = 0;
+        var dailySampleCount = 0;
+        lightLabels = [];
+        luxSeries = [];
+        ppfdSeries = [];
+        for (var lt = start.getTime(); lt <= end.getTime(); lt += dtMs) {
+          var ld = new Date(lt);
+          var lr = radiationAt(lt);
+          var dailyLuxMultiplier = safePositive(calibration.fiberLuxMultiplier, DEFAULT_FIBER_LUX_MULTIPLIER);
+          var dailyPpfdMultiplier = safePositive(calibration.fiberPpfdMultiplier, DEFAULT_FIBER_PPFD_MULTIPLIER);
+          var dailyLux = Math.max(0, lr * 120 * fiberEfficiency * dailyLuxMultiplier + calibration.fiberLuxOffset);
+          var dailyPpfd = Math.round(dailyLux) > 0 && lr > 0 ? Math.max(0, lr * 1.96 * fiberEfficiency * dailyPpfdMultiplier + calibration.fiberPpfdOffset) : 0;
+          dailyLuxSum += dailyLux;
+          dailyPpfdSum += dailyPpfd;
+          dailySampleCount += 1;
+          if (ld.getMinutes() === 0 || lt + dtMs > end.getTime()) {
+            lightLabels.push(ld.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
+            luxSeries.push(Number(dailyLux.toFixed(0)));
+            ppfdSeries.push(Number(dailyPpfd.toFixed(0)));
+          }
+        }
+        luxSum = dailyLuxSum;
+        ppfdSum = dailyPpfdSum;
+        sampleCount = dailySampleCount;
+
         var liveHybridFraction = 0;
         var liveHybridLedOn = false;
         var liveFullLedOn = false;
@@ -510,23 +537,32 @@
       function renderLightChart(sim) {
         if (!window.Chart) { setText("lightChartNotice", "Chart library unavailable. Numeric readings are still active."); return; }
         var ctx = el("lightChart");
-        if (!ctx) return;
-        if (lightChart) lightChart.destroy();
+        if (!ctx || !sim.lightChart || !sim.lightChart.labels || sim.lightChart.labels.length === 0) return;
+
+        var chartData = {
+          labels: sim.lightChart.labels,
+          datasets: [
+            { label: "Fiber Lux", data: sim.lightChart.luxSeries, borderWidth: 2, tension: 0.25, yAxisID: "y" },
+            { label: "Fiber PPFD", data: sim.lightChart.ppfdSeries, borderWidth: 2, tension: 0.25, yAxisID: "y1" }
+          ]
+        };
+
+        if (lightChart) {
+          lightChart.data = chartData;
+          lightChart.update();
+          return;
+        }
+
         lightChart = new Chart(ctx, {
           type: "line",
-          data: {
-            labels: sim.lightChart.labels,
-            datasets: [
-              { label: "Fiber Lux", data: sim.lightChart.luxSeries, borderWidth: 2, tension: 0.25, yAxisID: "y" },
-              { label: "Fiber PPFD", data: sim.lightChart.ppfdSeries, borderWidth: 2, tension: 0.25, yAxisID: "y1" }
-            ]
-          },
+          data: chartData,
           options: {
             responsive: true,
+            maintainAspectRatio: true,
             interaction: { mode: "index", intersect: false },
             plugins: { legend: { labels: { color: "#e5e7eb" } } },
             scales: {
-              x: { ticks: { color: "#94a3b8" }, grid: { color: "rgba(255,255,255,0.05)" } },
+              x: { ticks: { color: "#94a3b8", maxRotation: 0, autoSkip: true }, grid: { color: "rgba(255,255,255,0.05)" } },
               y: { type: "linear", position: "left", ticks: { color: "#94a3b8" }, grid: { color: "rgba(255,255,255,0.05)" }, beginAtZero: true, title: { display: true, text: "Lux", color: "#94a3b8" } },
               y1: { type: "linear", position: "right", ticks: { color: "#94a3b8" }, grid: { drawOnChartArea: false }, beginAtZero: true, title: { display: true, text: "PPFD", color: "#94a3b8" } }
             }
