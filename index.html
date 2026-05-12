@@ -654,6 +654,13 @@
         }
       }
 
+      function formatDateKey(date) {
+        const y = date.getFullYear();
+        const m = String(date.getMonth() + 1).padStart(2, "0");
+        const d = String(date.getDate()).padStart(2, "0");
+        return `${y}-${m}-${d}`;
+      }
+
       async function fetchLightData(force = false) {
         const now = Date.now();
         if (!force && now - state.lastFetchMs < 5 * 60 * 1000) return;
@@ -661,25 +668,39 @@
         setPill("Updating light data", "warn");
         setText("lastUpdate", "Updating light data...");
 
-        const satelliteUrl = new URL("https://satellite-api.open-meteo.com/v1/archive");
-        satelliteUrl.searchParams.set("latitude", FIXED_LATITUDE);
-        satelliteUrl.searchParams.set("longitude", FIXED_LONGITUDE);
-        satelliteUrl.searchParams.set("timezone", "Asia/Manila");
-        satelliteUrl.searchParams.set("hourly", "shortwave_radiation");
-        satelliteUrl.searchParams.set("models", "satellite_radiation_seamless");
-        satelliteUrl.searchParams.set("temporal_resolution", "native");
-
         const forecastUrl = new URL("https://api.open-meteo.com/v1/forecast");
         forecastUrl.searchParams.set("latitude", FIXED_LATITUDE);
         forecastUrl.searchParams.set("longitude", FIXED_LONGITUDE);
         forecastUrl.searchParams.set("timezone", "Asia/Manila");
-        forecastUrl.searchParams.set("hourly", "shortwave_radiation");
+        forecastUrl.searchParams.set("timeformat", "unixtime");
         forecastUrl.searchParams.set("current", "shortwave_radiation");
+        forecastUrl.searchParams.set("hourly", "shortwave_radiation");
         forecastUrl.searchParams.set("past_days", "1");
         forecastUrl.searchParams.set("forecast_days", "2");
 
-        let data = await tryFetchJson(satelliteUrl);
-        if (!data) data = await tryFetchJson(forecastUrl);
+        const today = new Date();
+        const yesterday = new Date(today);
+        yesterday.setDate(today.getDate() - 1);
+
+        const satelliteUrl = new URL("https://satellite-api.open-meteo.com/v1/archive");
+        satelliteUrl.searchParams.set("latitude", FIXED_LATITUDE);
+        satelliteUrl.searchParams.set("longitude", FIXED_LONGITUDE);
+        satelliteUrl.searchParams.set("timezone", "Asia/Manila");
+        satelliteUrl.searchParams.set("timeformat", "unixtime");
+        satelliteUrl.searchParams.set("hourly", "shortwave_radiation");
+        satelliteUrl.searchParams.set("start_date", formatDateKey(yesterday));setText("lastUpdate", "Last light update: " + new Date().toLocaleTimeString());
+        setPill("Live light data active", "ok");
+        renderAll();
+
+        const radiationCheck = getCurrentRadiation();
+        if (radiationCheck <= 0) {
+          setText("lastUpdate", "Light update received, but current light intensity is zero or unavailable for this timestamp.");
+        }ss");
+        safunction parseDataTime(t) {
+        if (typeof t === "number") return new Date(t * 1000);
+        if (!t) return new Date(NaN);
+        return new Date(t.length === 16 ? t + ":00" : t);
+      }a) data = await tryFetchJson(satelliteUrl);
 
         if (!data) {
           setPill("Light data unavailable", "bad");
@@ -703,7 +724,7 @@
         if (!state.lightData) return 0;
 
         const currentValue = Number(state.lightData.current?.shortwave_radiation);
-        if (Number.isFinite(currentValue)) return Math.max(0, currentValue);
+        if (Number.isFinite(currentValue) && currentValue > 0) return Math.max(0, currentValue);
 
         const h = state.lightData.hourly;
         if (!h || !h.time?.length) return 0;
