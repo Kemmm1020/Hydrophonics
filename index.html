@@ -58,8 +58,8 @@
     <section class="card span-4"><h3>Hybrid System</h3><div class="metric-title">Fiber Light + Hybrid LED DLI Today</div><div class="value good" id="dliHybrid">0.00</div><div class="unit">mol/m2/day</div><div class="progress"><div class="bar" id="hybridBar"></div></div><p class="status-line">Hybrid LED Status: <b id="hybridLedStatus" class="bad">OFF</b></p><p class="status-line" id="hybridStatus">Calculating...</p></section>
     <section class="card span-4"><h3>Full LED System</h3><div class="metric-title">LED-only DLI Today</div><div class="value blue" id="dliFull">0.00</div><div class="unit">mol/m2/day</div><div class="progress"><div class="bar" id="fullBar"></div></div><p class="status-line">Full LED Status: <b id="fullLedStatus" class="bad">OFF</b></p><p class="status-line" id="fullStatus">Calculating...</p></section>
     <section class="card span-4"><h3>LED Energy</h3><div class="metric-title">Estimated Hybrid LED Energy Today</div><div class="value warn" id="kwhHybrid">0.000</div><div class="unit">kWh</div><div class="metric-title" style="margin-top:14px">Estimated Full LED Energy Today</div><div class="value blue" id="kwhFullMain">0.000</div><div class="unit">kWh</div><p class="status-line">LED-only energy today: <b id="kwhFull">0.000</b> kWh</p><p class="status-line">Hybrid LED DLI supplied: <b id="hybridLedDli">0.00</b> mol/m2/day</p><p class="status-line">Full LED DLI supplied: <b id="fullLedDli">0.00</b> mol/m2/day</p><p class="status-line">Additional DLI needed to reach target: <b id="dliNeeded">0.00</b> mol/m2/day</p></section>
-    <section class="card span-8"><h3>Today's DLI Curve</h3><canvas id="dliChart" height="120"></canvas><p class="small" id="chartNotice"></p></section>
-    <section class="card span-8"><h3>Fiber Lux and PPFD Through the Day</h3><canvas id="lightChart" height="120"></canvas><p class="small" id="lightChartNotice"></p></section>
+    <section class="card span-8"><h3>Light Contribution Rate Through the Day</h3><canvas id="dliChart" height="120"></canvas><p class="small" id="chartNotice">Graph shows active light rate, not accumulated DLI. Curves return to zero when the light source is off.</p></section>
+    <section class="card span-8"><h3>Fiber Lux and PPFD Through the Day</h3><canvas id="lightChart" height="120"></canvas><p class="small" id="lightChartNotice">Graph updates progressively and only shows readings up to the current time.</p></section>
     <section class="card span-4"><h3>Daily Light Averages</h3><div class="metric-title">Average Fiber Lux Today</div><div class="value good" id="avgFiberLux">0</div><div class="unit">lux average</div><div class="metric-title" style="margin-top:14px">Average Fiber PPFD Today</div><div class="value blue" id="avgFiberPpfd">0</div><div class="unit">umol/m2/s average</div></section>
     <section class="card span-4"><h3>Full LED Manual Control</h3><label>Brightness</label><input id="fullLedBrightnessControl" type="range" min="0" max="255" value="255"><p class="status-line">Brightness value: <b id="fullLedBrightnessText">255</b> / 255</p><div class="row"><div><label>ON Hour</label><input id="fullLedOnHour" type="number" min="0" max="23" value="7"></div><div><label>OFF Hour</label><input id="fullLedOffHour" type="number" min="0" max="23" value="21"></div></div><button id="saveFullLedBtn">Apply Full LED Settings</button><p class="status-line" id="fullLedControlStatus">Full LED settings ready.</p></section>
   </main>
@@ -79,6 +79,9 @@
       var TARGET_DLI = 18;
       var HYBRID_ON_HOUR = 7;
       var HYBRID_OFF_HOUR = 21;
+      var SOLAR_HARVEST_START_HOUR = 6;
+      var SOLAR_HARVEST_PEAK_HOUR = 12;
+      var SOLAR_HARVEST_END_HOUR = 18;
 
       var fiberEfficiency = 0.25;
       var DEFAULT_FIBER_LUX_MULTIPLIER = 0.073945;
@@ -348,11 +351,34 @@
         return h >= startHour || h < endHour;
       }
 
+      function solarCollectionFactor(date) {
+        var h = date.getHours() + date.getMinutes() / 60 + date.getSeconds() / 3600;
+        if (h <= SOLAR_HARVEST_START_HOUR || h >= SOLAR_HARVEST_END_HOUR) return 0;
+
+        var factor;
+        if (h <= SOLAR_HARVEST_PEAK_HOUR) {
+          factor = Math.sin(((h - SOLAR_HARVEST_START_HOUR) / (SOLAR_HARVEST_PEAK_HOUR - SOLAR_HARVEST_START_HOUR)) * Math.PI / 2);
+        } else {
+          factor = Math.sin(((SOLAR_HARVEST_END_HOUR - h) / (SOLAR_HARVEST_END_HOUR - SOLAR_HARVEST_PEAK_HOUR)) * Math.PI / 2);
+        }
+        return Math.pow(clamp(factor, 0, 1), 1.35);
+      }
+
+      function fiberRadiationAt(timeMs) {
+        var d = new Date(timeMs);
+        return radiationAt(timeMs) * solarCollectionFactor(d);
+      }
+
+      function currentFiberRadiation() {
+        return liveRadiation * solarCollectionFactor(new Date());
+      }
+
       function updateLiveLightCards() {
         var luxMultiplier = safePositive(calibration.fiberLuxMultiplier, DEFAULT_FIBER_LUX_MULTIPLIER);
         var ppfdMultiplier = safePositive(calibration.fiberPpfdMultiplier, DEFAULT_FIBER_PPFD_MULTIPLIER);
-        var fiberLux = Math.max(0, liveRadiation * 120 * fiberEfficiency * luxMultiplier + calibration.fiberLuxOffset);
-        var fiberPpfd = Math.round(fiberLux) > 0 && liveRadiation > 0 ? Math.max(0, liveRadiation * 1.96 * fiberEfficiency * ppfdMultiplier + calibration.fiberPpfdOffset) : 0;
+        var activeFiberRadiation = currentFiberRadiation();
+        var fiberLux = Math.max(0, activeFiberRadiation * 120 * fiberEfficiency * luxMultiplier + calibration.fiberLuxOffset);
+        var fiberPpfd = Math.round(fiberLux) > 0 && activeFiberRadiation > 0 ? Math.max(0, activeFiberRadiation * 1.96 * fiberEfficiency * ppfdMultiplier + calibration.fiberPpfdOffset) : 0;
         setText("fiberLux", fmt(fiberLux, 0));
         setText("fiberPpfd", fmt(fiberPpfd, 0));
       }
@@ -385,7 +411,7 @@
 
         for (var t = start.getTime(); t <= now.getTime(); t += dtMs) {
           var d = new Date(t);
-          var rad = radiationAt(t);
+          var rad = fiberRadiationAt(t);
           var luxMultiplier = safePositive(calibration.fiberLuxMultiplier, DEFAULT_FIBER_LUX_MULTIPLIER);
           var ppfdMultiplier = safePositive(calibration.fiberPpfdMultiplier, DEFAULT_FIBER_PPFD_MULTIPLIER);
           var fiberLux = Math.max(0, rad * 120 * fiberEfficiency * luxMultiplier + calibration.fiberLuxOffset);
@@ -426,19 +452,20 @@
           fullLedDli += acceptedFullLedDli;
 
           if (d.getMinutes() === 0 || t + dtMs > now.getTime()) {
+            var fiberRate = fiberPpfd * 3600 / 1000000;
+            var hybridLedRate = hybridLedPpfd * 3600 / 1000000;
+            var fullLedRate = fullLedPpfd * 3600 / 1000000;
             labels.push(d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
-            fiberSeries.push(Number(fiberDli.toFixed(2)));
-            hybridSeries.push(Number(hybridDli.toFixed(2)));
-            fullSeries.push(Number(fullDli.toFixed(2)));
-            lightLabels.push(d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
-            luxSeries.push(Number(fiberLux.toFixed(0)));
-            ppfdSeries.push(Number(fiberPpfd.toFixed(0)));
+            fiberSeries.push(Number(fiberRate.toFixed(3)));
+            hybridSeries.push(Number(hybridLedRate.toFixed(3)));
+            fullSeries.push(Number(fullLedRate.toFixed(3)));
           }
         }
 
         var remainingFiberDli = 0;
         for (var rt = now.getTime(); rt <= end.getTime(); rt += dtMs) {
-          var r = radiationAt(rt);
+          var futureDate = new Date(rt);
+          var r = fiberRadiationAt(rt);
           var luxMultiplier = safePositive(calibration.fiberLuxMultiplier, DEFAULT_FIBER_LUX_MULTIPLIER);
           var ppfdMultiplier = safePositive(calibration.fiberPpfdMultiplier, DEFAULT_FIBER_PPFD_MULTIPLIER);
           var predictedLux = Math.max(0, r * 120 * fiberEfficiency * luxMultiplier + calibration.fiberLuxOffset);
@@ -447,7 +474,7 @@
         }
 
         var liveLuxMultiplier = safePositive(calibration.fiberLuxMultiplier, DEFAULT_FIBER_LUX_MULTIPLIER);
-        var liveFiberLux = Math.max(0, liveRadiation * 120 * fiberEfficiency * liveLuxMultiplier + calibration.fiberLuxOffset);
+        var liveFiberLux = Math.max(0, currentFiberRadiation() * 120 * fiberEfficiency * liveLuxMultiplier + calibration.fiberLuxOffset);
 
         var dailyLuxSum = 0;
         var dailyPpfdSum = 0;
@@ -455,9 +482,9 @@
         lightLabels = [];
         luxSeries = [];
         ppfdSeries = [];
-        for (var lt = start.getTime(); lt <= end.getTime(); lt += dtMs) {
+        for (var lt = start.getTime(); lt <= now.getTime(); lt += dtMs) {
           var ld = new Date(lt);
-          var lr = radiationAt(lt);
+          var lr = fiberRadiationAt(lt);
           var dailyLuxMultiplier = safePositive(calibration.fiberLuxMultiplier, DEFAULT_FIBER_LUX_MULTIPLIER);
           var dailyPpfdMultiplier = safePositive(calibration.fiberPpfdMultiplier, DEFAULT_FIBER_PPFD_MULTIPLIER);
           var dailyLux = Math.max(0, lr * 120 * fiberEfficiency * dailyLuxMultiplier + calibration.fiberLuxOffset);
@@ -465,7 +492,7 @@
           dailyLuxSum += dailyLux;
           dailyPpfdSum += dailyPpfd;
           dailySampleCount += 1;
-          if (ld.getMinutes() === 0 || lt + dtMs > end.getTime()) {
+          if (ld.getMinutes() === 0 || lt + dtMs > now.getTime()) {
             lightLabels.push(ld.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
             luxSeries.push(Number(dailyLux.toFixed(0)));
             ppfdSeries.push(Number(dailyPpfd.toFixed(0)));
@@ -518,9 +545,9 @@
           data: {
             labels: sim.chart.labels,
             datasets: [
-              { label: "Fiber Light DLI", data: sim.chart.fiberSeries, borderWidth: 2, tension: 0.25 },
-              { label: "Hybrid System DLI", data: sim.chart.hybridSeries, borderWidth: 3, tension: 0.25 },
-              { label: "Full LED DLI", data: sim.chart.fullSeries, borderWidth: 2, tension: 0.25 }
+              { label: "Fiber Light Rate", data: sim.chart.fiberSeries, borderWidth: 2, tension: 0.25 },
+              { label: "Hybrid LED Rate", data: sim.chart.hybridSeries, borderWidth: 3, tension: 0.25 },
+              { label: "Full LED Rate", data: sim.chart.fullSeries, borderWidth: 2, tension: 0.25 }
             ]
           },
           options: {
@@ -528,7 +555,7 @@
             plugins: { legend: { labels: { color: "#e5e7eb" } } },
             scales: {
               x: { ticks: { color: "#94a3b8" }, grid: { color: "rgba(255,255,255,0.05)" } },
-              y: { ticks: { color: "#94a3b8" }, grid: { color: "rgba(255,255,255,0.05)" }, beginAtZero: true }
+              y: { ticks: { color: "#94a3b8" }, grid: { color: "rgba(255,255,255,0.05)" }, beginAtZero: true, title: { display: true, text: "mol/m2/hour", color: "#94a3b8" } }
             }
           }
         });
@@ -595,7 +622,7 @@
         var fp = clamp(sim.fullDli / TARGET_DLI * 100, 0, 100);
         el("hybridBar").style.width = hp + "%";
         el("fullBar").style.width = fp + "%";
-        setText("hybridStatus", fmt(hp, 1) + "% of target. Fiber DLI today: " + fmt(sim.fiberDli, 2) + ". LED and fiber light are counted simultaneously.");
+        setText("hybridStatus", fmt(hp, 1) + "% of target. Fiber DLI accumulated today: " + fmt(sim.fiberDli, 2) + ". Graph shows Fiber Rate, Hybrid LED Rate only, and Full LED Rate separately.");
         setText("fullStatus", fmt(fp, 1) + "% of target. Manual brightness: " + fullLedBrightnessValue + " / 255. Timer: " + String(fullLedOnHourValue).padStart(2, "0") + ":00 to " + String(fullLedOffHourValue).padStart(2, "0") + ":00.");
         updateWaterAndPH();
         renderChart(sim);
