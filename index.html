@@ -1,666 +1,885 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Smart Hydroponics Light Dashboard</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hybrid Hydroponics Lighting Dashboard</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     :root {
-      --bg:#07111f; --panel:#101b33; --line:rgba(255,255,255,0.08);
-      --text:#e5e7eb; --muted:#94a3b8; --good:#22c55e; --warn:#eab308;
-      --bad:#ef4444; --blue:#38bdf8; --violet:#a78bfa;
+      --bg: #f4f7f6;
+      --card: #ffffff;
+      --text: #17231f;
+      --muted: #63726b;
+      --line: #dbe4df;
+      --primary: #198754;
+      --primary-dark: #12663f;
+      --danger: #dc3545;
+      --warning: #f59f00;
+      --blue: #0d6efd;
+      --shadow: 0 10px 28px rgba(0, 0, 0, 0.08);
+      --radius: 18px;
     }
-    *{box-sizing:border-box}
-    body{margin:0;font-family:Arial,Helvetica,sans-serif;background:radial-gradient(circle at top,#13223d,var(--bg) 55%);color:var(--text);padding:14px}
-    header{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:12px;flex-wrap:wrap}
-    h1,h2,h3{margin:0} h1{font-size:clamp(22px,4vw,34px)}
-    .subtitle{color:var(--muted);margin-top:6px;max-width:850px;line-height:1.45}
-    .top-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
-    .nav-button{width:auto;min-width:120px;padding:9px 12px;margin-top:0}
-    .grid{display:grid;grid-template-columns:repeat(12,1fr);gap:12px}
-    .card{background:linear-gradient(180deg,rgba(16,27,51,.98),rgba(10,18,34,.98));border:1px solid var(--line);border-radius:16px;padding:16px;box-shadow:0 10px 30px rgba(0,0,0,.24)}
-    .span-12{grid-column:span 12}.span-8{grid-column:span 8}.span-6{grid-column:span 6}.span-4{grid-column:span 4}.span-3{grid-column:span 3}
-    .metric-title{color:var(--muted);font-size:13px;margin-bottom:8px}.value{font-size:clamp(22px,4vw,34px);font-weight:800;letter-spacing:-.02em}.unit{font-size:13px;color:var(--muted);margin-top:4px}
-    .good{color:var(--good)}.warn{color:var(--warn)}.bad{color:var(--bad)}.blue{color:var(--blue)}.violet{color:var(--violet)}
-    label{display:block;font-size:13px;color:var(--muted);margin-top:10px;margin-bottom:5px}
-    input,button{width:100%;padding:10px 11px;border-radius:10px;border:1px solid var(--line);background:#0b1221;color:var(--text);outline:none} input[type=range]{padding:0}
-    button{background:linear-gradient(135deg,var(--good),#86efac);color:#03110a;font-weight:800;cursor:pointer;border:0;margin-top:12px}.secondary{background:#172554;color:var(--text);border:1px solid rgba(56,189,248,.25)}
-    .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}.status-line{color:var(--muted);font-size:13px;margin-top:8px;line-height:1.4}
-    .pill{display:inline-flex;align-items:center;gap:6px;padding:7px 10px;border-radius:999px;background:rgba(34,197,94,.12);color:#bbf7d0;border:1px solid rgba(34,197,94,.18);font-size:12px;font-weight:700}.warn-pill{background:rgba(234,179,8,.12);color:#fef08a;border-color:rgba(234,179,8,.18)}.bad-pill{background:rgba(239,68,68,.12);color:#fecaca;border-color:rgba(239,68,68,.2)}
-    .progress{height:12px;background:#0b1221;border:1px solid var(--line);border-radius:999px;overflow:hidden;margin-top:10px}.bar{height:100%;width:0%;background:linear-gradient(90deg,var(--good),var(--blue));transition:width .35s ease}.small{font-size:12px;color:var(--muted);line-height:1.45}.hidden{display:none}
-    @media(max-width:920px){.span-8,.span-6,.span-4,.span-3{grid-column:span 12}.row{grid-template-columns:1fr}.top-actions{justify-content:flex-start}.nav-button{width:100%}}
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    header {
+      padding: 22px 18px;
+      background: linear-gradient(135deg, #198754, #0b5132);
+      color: white;
+      text-align: center;
+    }
+
+    header h1 {
+      margin: 0;
+      font-size: 1.65rem;
+      letter-spacing: 0.2px;
+    }
+
+    header p {
+      margin: 8px 0 0;
+      opacity: 0.92;
+      font-size: 0.95rem;
+    }
+
+    nav {
+      display: flex;
+      gap: 8px;
+      padding: 12px;
+      background: white;
+      border-bottom: 1px solid var(--line);
+      position: sticky;
+      top: 0;
+      z-index: 5;
+      overflow-x: auto;
+    }
+
+    nav button {
+      border: 1px solid var(--line);
+      background: #f7faf8;
+      color: var(--text);
+      padding: 10px 14px;
+      border-radius: 999px;
+      cursor: pointer;
+      white-space: nowrap;
+      font-weight: 600;
+    }
+
+    nav button.active {
+      background: var(--primary);
+      color: white;
+      border-color: var(--primary);
+    }
+
+    main {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 18px;
+    }
+
+    .section { display: none; }
+    .section.active { display: block; }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+      gap: 14px;
+      margin-bottom: 16px;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 16px;
+    }
+
+    .card h2, .card h3 {
+      margin-top: 0;
+    }
+
+    .metric-label {
+      font-size: 0.86rem;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+
+    .metric-value {
+      font-size: 1.65rem;
+      font-weight: 800;
+      line-height: 1.15;
+    }
+
+    .metric-unit {
+      font-size: 0.82rem;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+
+    .status-pill {
+      display: inline-block;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: #e8f5ee;
+      color: var(--primary-dark);
+      font-weight: 700;
+      font-size: 0.82rem;
+    }
+
+    .status-pill.manual { background: #fff3cd; color: #876400; }
+    .status-pill.full { background: #ffe5e8; color: #a11121; }
+
+    .row {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    label {
+      font-weight: 700;
+      font-size: 0.92rem;
+    }
+
+    input, select, textarea {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: white;
+      color: var(--text);
+      font-size: 0.95rem;
+    }
+
+    input[type="range"] {
+      padding: 0;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+      gap: 14px;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .btn {
+      border: none;
+      border-radius: 10px;
+      padding: 11px 14px;
+      cursor: pointer;
+      font-weight: 800;
+      color: white;
+      background: var(--primary);
+    }
+
+    .btn:hover { background: var(--primary-dark); }
+    .btn.secondary { background: var(--blue); }
+    .btn.warning { background: var(--warning); color: #1e1600; }
+    .btn.danger { background: var(--danger); }
+    .btn.gray { background: #6c757d; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      overflow: hidden;
+      border-radius: 12px;
+      background: white;
+    }
+
+    th, td {
+      border-bottom: 1px solid var(--line);
+      padding: 10px;
+      text-align: left;
+      font-size: 0.9rem;
+    }
+
+    th {
+      background: #eaf3ee;
+      font-weight: 800;
+    }
+
+    tr:hover td { background: #fbfdfc; }
+
+    .table-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+    }
+
+    .note {
+      color: var(--muted);
+      font-size: 0.92rem;
+      line-height: 1.45;
+    }
+
+    .alert {
+      border-left: 5px solid var(--warning);
+      padding: 12px 14px;
+      border-radius: 12px;
+      background: #fff9e7;
+      margin-bottom: 14px;
+    }
+
+    canvas {
+      max-height: 340px;
+    }
+
+    footer {
+      text-align: center;
+      color: var(--muted);
+      padding: 20px;
+      font-size: 0.85rem;
+    }
   </style>
 </head>
 <body>
   <header>
-    <div>
-      <h1>Smart Hydroponics Light Dashboard</h1>
-      <p class="subtitle">Real-time monitoring panel for fiber-delivered light, DLI accumulation, hybrid LED support, full LED operation, nutrient pH, water level, and LED energy consumption.</p>
-    </div>
-    <div class="top-actions">
-      <span id="connectionPill" class="pill warn-pill">Light data initializing</span>
-      <button class="nav-button secondary" id="dashboardBtn">Dashboard</button>
-      <button class="nav-button secondary" id="calibrationBtn">Calibration</button>
-    </div>
+    <h1>Hybrid Hydroponics Lighting Dashboard</h1>
+    <p>Calibrated fiber light DLI, historical daily data, LED energy, and hybrid LED override control</p>
   </header>
 
-  <main id="dashboardPage" class="grid">
-    <section class="card span-12"><div class="row"><div><h3>System Time</h3><p class="value blue" id="clock">--:--:--</p><p class="unit" id="dateText">Loading date...</p></div><div><h3>System Status</h3><p class="status-line" id="lastUpdate">Waiting for light update...</p><p class="status-line">System values refresh automatically during operation.</p></div></div></section>
-    <section class="card span-3"><div class="metric-title">Fiber Light Intensity</div><div class="value good" id="fiberLux">0</div><div class="unit">lux at fiber output</div></section>
-    <section class="card span-3"><div class="metric-title">Fiber Light PPFD</div><div class="value good" id="fiberPpfd">0</div><div class="unit">umol/m2/s at plant area</div></section>
-    <section class="card span-3"><div class="metric-title">Hybrid LED Output</div><div class="value warn" id="hybridPwm">0</div><div class="unit">PWM value / 255</div></section>
-    <section class="card span-3"><div class="metric-title">Remaining Fiber Light</div><div class="value violet" id="fiberRemaining">0.00</div><div class="unit">mol/m2 remaining today</div></section>
-    <section class="card span-3"><div class="metric-title">pH Level</div><div class="value good" id="phLevel">0.00</div><div class="unit">nutrient solution pH</div></section>
-    <section class="card span-3"><div class="metric-title">Water Level</div><div class="value blue" id="waterLevel">0</div><div class="unit">reservoir level %</div></section>
-    <section class="card span-3"><div class="metric-title">Full LED Brightness</div><div class="value warn" id="fullBrightnessReadout">255</div><div class="unit">manual PWM value / 255</div></section>
-    <section class="card span-3"><div class="metric-title">Target DLI</div><div class="value blue">18.00</div><div class="unit">mol/m2/day</div></section>
-    <section class="card span-4"><h3>Hybrid System</h3><div class="metric-title">Fiber Light + Hybrid LED DLI Today</div><div class="value good" id="dliHybrid">0.00</div><div class="unit">mol/m2/day</div><div class="progress"><div class="bar" id="hybridBar"></div></div><p class="status-line">Hybrid LED Status: <b id="hybridLedStatus" class="bad">OFF</b></p><p class="status-line" id="hybridStatus">Calculating...</p></section>
-    <section class="card span-4"><h3>Full LED System</h3><div class="metric-title">LED-only DLI Today</div><div class="value blue" id="dliFull">0.00</div><div class="unit">mol/m2/day</div><div class="progress"><div class="bar" id="fullBar"></div></div><p class="status-line">Full LED Status: <b id="fullLedStatus" class="bad">OFF</b></p><p class="status-line" id="fullStatus">Calculating...</p></section>
-    <section class="card span-4"><h3>LED Energy</h3><div class="metric-title">Estimated Hybrid LED Energy Today</div><div class="value warn" id="kwhHybrid">0.000</div><div class="unit">kWh</div><div class="metric-title" style="margin-top:14px">Estimated Full LED Energy Today</div><div class="value blue" id="kwhFullMain">0.000</div><div class="unit">kWh</div><p class="status-line">LED-only energy today: <b id="kwhFull">0.000</b> kWh</p><p class="status-line">Hybrid LED DLI supplied: <b id="hybridLedDli">0.00</b> mol/m2/day</p><p class="status-line">Full LED DLI supplied: <b id="fullLedDli">0.00</b> mol/m2/day</p><p class="status-line">Additional DLI needed to reach target: <b id="dliNeeded">0.00</b> mol/m2/day</p></section>
-    <section class="card span-8"><h3>Light Contribution Rate Through the Day</h3><canvas id="dliChart" height="120"></canvas><p class="small" id="chartNotice">Graph shows active light rate, not accumulated DLI. Curves return to zero when the light source is off.</p></section>
-    <section class="card span-8"><h3>Fiber Lux and PPFD Through the Day</h3><canvas id="lightChart" height="120"></canvas><p class="small" id="lightChartNotice">Graph updates progressively and only shows readings up to the current time.</p></section>
-    <section class="card span-4"><h3>Daily Light Averages</h3><div class="metric-title">Average Fiber Lux Today</div><div class="value good" id="avgFiberLux">0</div><div class="unit">lux average</div><div class="metric-title" style="margin-top:14px">Average Fiber PPFD Today</div><div class="value blue" id="avgFiberPpfd">0</div><div class="unit">umol/m2/s average</div></section>
-    <section class="card span-4"><h3>Full LED Manual Control</h3><label>Brightness</label><input id="fullLedBrightnessControl" type="range" min="0" max="255" value="255"><p class="status-line">Brightness value: <b id="fullLedBrightnessText">255</b> / 255</p><div class="row"><div><label>ON Hour</label><input id="fullLedOnHour" type="number" min="0" max="23" value="7"></div><div><label>OFF Hour</label><input id="fullLedOffHour" type="number" min="0" max="23" value="21"></div></div><button id="saveFullLedBtn">Apply Full LED Settings</button><p class="status-line" id="fullLedControlStatus">Full LED settings ready.</p></section>
+  <nav>
+    <button class="tab active" data-tab="dashboard">Dashboard</button>
+    <button class="tab" data-tab="history">Historical Data</button>
+    <button class="tab" data-tab="calibration">Calibration</button>
+    <button class="tab" data-tab="override">Hybrid LED Override</button>
+  </nav>
+
+  <main>
+    <section id="dashboard" class="section active">
+      <div class="grid">
+        <div class="card">
+          <div class="metric-label">Fiber Light DLI</div>
+          <div class="metric-value" id="fiberDLI">0.00</div>
+          <div class="metric-unit">mol/m²/day</div>
+        </div>
+        <div class="card">
+          <div class="metric-label">Average Lux</div>
+          <div class="metric-value" id="aveLux">0</div>
+          <div class="metric-unit">lux</div>
+        </div>
+        <div class="card">
+          <div class="metric-label">Average PPFD</div>
+          <div class="metric-value" id="avePPFD">0.00</div>
+          <div class="metric-unit">µmol/m²/s</div>
+        </div>
+        <div class="card">
+          <div class="metric-label">LED-Supplied DLI</div>
+          <div class="metric-value" id="ledSuppliedDLI">0.00</div>
+          <div class="metric-unit">mol/m²/day</div>
+        </div>
+        <div class="card">
+          <div class="metric-label">Total DLI Target</div>
+          <div class="metric-value" id="totalDLI">18.00</div>
+          <div class="metric-unit">mol/m²/day</div>
+        </div>
+        <div class="card">
+          <div class="metric-label">Hybrid LED Mode</div>
+          <div class="metric-value" style="font-size:1rem;"><span id="modeBadge" class="status-pill">AUTO</span></div>
+          <div class="metric-unit" id="brightnessText">Brightness: 0%</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Daily DLI and LED Contribution</h2>
+        <canvas id="dashboardChart"></canvas>
+      </div>
+    </section>
+
+    <section id="history" class="section">
+      <div class="card">
+        <h2>Historical Daily Values</h2>
+        <p class="note">This section excludes solar downward irradiance. Choose a date to display stored daily values for DLI, LED-supplied DLI, average lux, LED energy, PPFD, and hybrid LED mode.</p>
+
+        <div class="form-grid">
+          <div class="field">
+            <label for="historyDate">Choose Date</label>
+            <input type="date" id="historyDate" min="2026-02-03" max="2026-05-14" value="2026-05-14" />
+          </div>
+          <div class="field">
+            <label>&nbsp;</label>
+            <button class="btn" onclick="showSelectedHistory()">Show Daily Record</button>
+          </div>
+          <div class="field">
+            <label>&nbsp;</label>
+            <button class="btn secondary" onclick="downloadHistoryCSV()">Export Historical CSV</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid">
+        <div class="card">
+          <div class="metric-label">Selected Date</div>
+          <div class="metric-value" id="hDate" style="font-size:1.15rem;">-</div>
+        </div>
+        <div class="card">
+          <div class="metric-label">Fiber DLI</div>
+          <div class="metric-value" id="hDLI">-</div>
+          <div class="metric-unit">mol/m²/day</div>
+        </div>
+        <div class="card">
+          <div class="metric-label">LED-Supplied DLI</div>
+          <div class="metric-value" id="hLED">-</div>
+          <div class="metric-unit">mol/m²/day</div>
+        </div>
+        <div class="card">
+          <div class="metric-label">Average Lux</div>
+          <div class="metric-value" id="hLux">-</div>
+          <div class="metric-unit">lux</div>
+        </div>
+        <div class="card">
+          <div class="metric-label">LED Energy</div>
+          <div class="metric-value" id="hKWh">-</div>
+          <div class="metric-unit">kWh</div>
+        </div>
+        <div class="card">
+          <div class="metric-label">Average PPFD</div>
+          <div class="metric-value" id="hPPFD">-</div>
+          <div class="metric-unit">µmol/m²/s</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Historical Trend</h3>
+        <canvas id="historyChart"></canvas>
+      </div>
+
+      <div class="card">
+        <h3>Historical Data Table</h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>DLI</th>
+                <th>LED Supplied</th>
+                <th>Ave Lux</th>
+                <th>LED Energy, kWh</th>
+                <th>PPFD</th>
+                <th>Mode</th>
+                <th>Remarks</th>
+              </tr>
+            </thead>
+            <tbody id="historyTable"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section id="calibration" class="section">
+      <div class="card">
+        <h2>Website Calibration</h2>
+        <div class="alert">
+          The calibration below is based on your reference comparison: website DLI = 2.35, website lux = 464, website PPFD = 31, actual DLI = 4.079592, actual lux = 712.3436354, and actual PPFD = 47.2175.
+        </div>
+
+        <div class="form-grid">
+          <div class="field">
+            <label>Website Fiber DLI</label>
+            <input type="number" step="0.000001" id="webDLI" value="2.35" />
+          </div>
+          <div class="field">
+            <label>Actual Fiber DLI</label>
+            <input type="number" step="0.000001" id="actualDLI" value="4.079592" />
+          </div>
+          <div class="field">
+            <label>DLI Calibration Factor</label>
+            <input type="number" step="0.000001" id="dliCal" value="1.735997" />
+          </div>
+
+          <div class="field">
+            <label>Website Average Lux</label>
+            <input type="number" step="0.000001" id="webLux" value="464" />
+          </div>
+          <div class="field">
+            <label>Actual Average Lux</label>
+            <input type="number" step="0.000001" id="actualLux" value="712.3436354" />
+          </div>
+          <div class="field">
+            <label>Lux Calibration Factor</label>
+            <input type="number" step="0.000001" id="luxCal" value="1.535223" />
+          </div>
+
+          <div class="field">
+            <label>Website Average PPFD</label>
+            <input type="number" step="0.000001" id="webPPFD" value="31" />
+          </div>
+          <div class="field">
+            <label>Actual Average PPFD</label>
+            <input type="number" step="0.000001" id="actualPPFD" value="47.2175" />
+          </div>
+          <div class="field">
+            <label>PPFD Calibration Factor</label>
+            <input type="number" step="0.000001" id="ppfdCal" value="1.523145" />
+          </div>
+
+          <div class="field">
+            <label>Lux to PPFD Factor</label>
+            <input type="number" step="0.00000001" id="luxToPPFD" value="0.06628472" />
+          </div>
+          <div class="field">
+            <label>Target DLI</label>
+            <input type="number" step="0.01" id="targetDLI" value="18" />
+          </div>
+          <div class="field">
+            <label>&nbsp;</label>
+            <button class="btn" onclick="computeCalibration()">Recompute Factors</button>
+          </div>
+        </div>
+
+        <div class="row" style="margin-top:14px;">
+          <button class="btn secondary" onclick="saveCalibration()">Save Calibration to ESP32</button>
+          <button class="btn gray" onclick="loadCalibrationFromESP32()">Load Saved Calibration</button>
+        </div>
+
+        <p class="note">
+          Recommended website logic: calibrated lux = raw lux x lux calibration factor; calibrated PPFD = calibrated lux x lux-to-PPFD factor; DLI = accumulated PPFD x elapsed seconds / 1,000,000.
+        </p>
+      </div>
+    </section>
+
+    <section id="override" class="section">
+      <div class="card">
+        <h2>Hybrid LED Override Control</h2>
+        <p class="note">Use this when the plant canopy becomes larger and the fiber light is not scattered enough. Manual Override and Full Brightness Mode allow the hybrid LED to operate independently of PPFD readings.</p>
+
+        <div class="grid">
+          <div class="card">
+            <h3>Auto DLI Control</h3>
+            <p class="note">Hybrid LED follows the automatic DLI control strategy.</p>
+            <button class="btn" onclick="setHybridMode('auto')">Set Auto Mode</button>
+          </div>
+          <div class="card">
+            <h3>Manual Override</h3>
+            <p class="note">Hybrid LED follows the brightness slider.</p>
+            <button class="btn warning" onclick="setHybridMode('manual')">Set Manual Override</button>
+          </div>
+          <div class="card">
+            <h3>Full Brightness</h3>
+            <p class="note">Hybrid LED is forced to 100% brightness.</p>
+            <button class="btn danger" onclick="setHybridMode('full')">Set Full Brightness</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Hybrid LED Brightness Slider</h3>
+          <div class="field">
+            <label for="hybridBrightness">Brightness: <span id="hybridBrightnessValue">100</span>%</label>
+            <input type="range" id="hybridBrightness" min="0" max="100" value="100" oninput="updateBrightnessLabel()" onchange="setHybridBrightness()" />
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Override Reason</h3>
+          <textarea id="overrideReason" rows="3" placeholder="Example: Larger canopy, fiber light not scattered enough, full brightness needed despite PPFD reading."></textarea>
+          <div style="margin-top:12px;">
+            <button class="btn secondary" onclick="saveOverrideReason()">Save Override Reason</button>
+          </div>
+        </div>
+      </div>
+    </section>
   </main>
 
-  <main id="calibrationPage" class="grid hidden">
-    <section class="card span-12"><h2>Sensor Calibration</h2><p class="subtitle">Adjust the displayed sensor readings and LED calibration values.</p></section>
-    <section class="card span-6"><div style="display:flex;align-items:center;justify-content:space-between;gap:8px"><h3>Light Sensor Calibration</h3><button id="efficiencyBtn" title="Fiber PPFD efficiency" style="width:28px;height:24px;padding:0;margin:0;border-radius:7px;font-size:12px;line-height:1">%</button></div><div id="efficiencyCalibrationBox" class="hidden"><label>Fiber PPFD Efficiency</label><input id="calFiberEfficiency" type="number" min="0" max="1" step="0.001" value="0.250"><p class="small">Default value is 0.25. This is the direct-sunlight delivery efficiency through the fiber.</p></div><label>Fiber Lux Multiplier</label><input id="calFiberLux" type="number" step="0.000001" value="0.073945"><label>Fiber PPFD Multiplier</label><input id="calFiberPpfd" type="number" step="0.000001" value="0.295508"><label>Fiber Lux Offset</label><input id="calFiberLuxOffset" type="number" step="0.1" value="0"><label>Fiber PPFD Offset</label><input id="calFiberPpfdOffset" type="number" step="0.1" value="0"></section>
-    <section class="card span-6"><h3>Water and pH Calibration</h3><label>pH Offset</label><input id="calPH" type="number" step="0.01" value="0.00"><label>Water Level Offset</label><input id="calWater" type="number" step="0.1" value="0"><label>pH Display Multiplier</label><input id="calPHMultiplier" type="number" step="0.001" value="1.000"><label>Water Display Multiplier</label><input id="calWaterMultiplier" type="number" step="0.001" value="1.000"></section>
-    <section class="card span-6"><h3>LED Calibration</h3><label>Hybrid LED Maximum PPFD at 255 PWM</label><input id="calHybridLedMaxPpfd" type="number" step="0.01" value="204.43"><label>Full LED Maximum PPFD at 255 PWM</label><input id="calFullLedMaxPpfd" type="number" step="0.01" value="204.43"><label>LED Energy at 18 DLI</label><input id="calLedEnergy" type="number" step="0.000001" value="0.332445"><label>Hybrid Lux Setpoint</label><input id="calLuxSetpoint" type="number" step="100" value="10000"></section>
-    <section class="card span-6"><h3>Calibration Actions</h3><button id="saveCalibrationBtn">Save Calibration</button><button class="secondary" id="resetCalibrationBtn">Reset Calibration</button><button class="secondary" id="returnDashboardBtn">Return to Dashboard</button><p class="status-line" id="calibrationStatus">Calibration values ready.</p></section>
-  </main>
+  <footer>
+    Hybrid Fiber Daylighting and Supplemental LED Hydroponics System
+  </footer>
 
   <script>
-    document.addEventListener("DOMContentLoaded", function () {
-      var FIXED_LATITUDE = 9.755446;
-      var FIXED_LONGITUDE = 118.745955;
-      var TARGET_DLI = 18;
-      var HYBRID_ON_HOUR = 7;
-      var HYBRID_OFF_HOUR = 21;
-      var SOLAR_HARVEST_START_HOUR = 6;
-      var SOLAR_HARVEST_PEAK_HOUR = 12;
-      var SOLAR_HARVEST_END_HOUR = 18;
+    const TARGET_DLI_DEFAULT = 18.0;
 
-      var fiberEfficiency = 0.25;
-      var DEFAULT_FIBER_LUX_MULTIPLIER = 0.073945;
-      var DEFAULT_FIBER_PPFD_MULTIPLIER = 0.295508;
-      var CALIBRATION_PRESET_VERSION = "fiber_dli_4p8_lux_850_ppfd55p56_v2";
-      var luxSetpoint = 10000;
-      var hybridLedMaxPpfd = 204.43;
-      var fullLedMaxPpfd = 204.43;
-      var ledEnergyAt18Dli = 0.332445;
-      var fullLedOnHourValue = 7;
-      var fullLedOffHourValue = 21;
-      var fullLedBrightnessValue = 255;
-      var chart = null;
-      var lightChart = null;
-      var lastFetchMs = 0;
-      var lightData = null;
-      var liveRadiation = 0;
+    // Historical data supplied by the user.
+    // Solar downward irradiance is intentionally excluded from this website.
+    const historyData = [
+      {date:'2026-02-03', dli:3.060612, led:14.939388, lux:534.4180199, kwh:0.275918047, ppfd:35.42375, mode:'Auto', remarks:'Fiber-assisted'},
+      {date:'2026-02-04', dli:4.171392, led:13.828608, lux:728.3729701, kwh:0.255402866, ppfd:48.28, mode:'Auto', remarks:'Fiber-assisted'},
+      {date:'2026-02-05', dli:3.574692, led:14.425308, lux:624.1822944, kwh:0.266423418, ppfd:41.37375, mode:'Auto', remarks:'Fiber-assisted'},
+      {date:'2026-02-06', dli:1.329264, led:16.670736, lux:232.1047669, kwh:0.307894602, ppfd:15.385, mode:'Auto', remarks:'Fiber-assisted'},
+      {date:'2026-02-07', dli:1.914948, led:16.085052, lux:334.3719225, kwh:0.297077506, ppfd:22.16375, mode:'Auto', remarks:'Fiber-assisted'},
+      {date:'2026-02-08', dli:0.63342, led:17.36658, lux:110.6024096, kwh:0.32074626, ppfd:7.33125, mode:'Auto', remarks:'Fiber-assisted'},
+      {date:'2026-02-09', dli:2.357424, led:15.642576, lux:411.6333159, kwh:0.288905343, ppfd:27.285, mode:'Auto', remarks:'Fiber-assisted'},
+      {date:'2026-02-10', dli:2.072844, led:15.927156, lux:361.9423782, kwh:0.294161299, ppfd:23.99125, mode:'Auto', remarks:'Fiber-assisted'},
+      {date:'2026-02-11', dli:1.892916, led:16.107084, lux:330.5248821, kwh:0.297484419, ppfd:21.90875, mode:'Auto', remarks:'Fiber-assisted'},
+      {date:'2026-02-12', dli:2.096712, led:15.903288, lux:366.1100052, kwh:0.293720477, ppfd:24.2675, mode:'Auto', remarks:'Fiber-assisted'},
+      {date:'2026-02-13', dli:3.235032, led:14.764968, lux:564.8737559, kwh:0.272696655, ppfd:37.4425, mode:'Auto', remarks:'Fiber-assisted'},
+      {date:'2026-02-14', dli:3.095496, led:14.904504, lux:540.5091671, kwh:0.275273768, ppfd:35.8275, mode:'Auto', remarks:'Fiber-assisted'},
+      {date:'2026-02-15', dli:3.251556, led:14.748444, lux:567.7590361, kwh:0.27239147, ppfd:37.63375, mode:'Auto', remarks:'Fiber-assisted'},
+      {date:'2026-02-16', dli:4.389876, led:13.610124, lux:766.5227868, kwh:0.251367649, ppfd:50.80875, mode:'Auto', remarks:'Fiber-assisted'},
+      {date:'2026-02-17', dli:4.14018, led:13.85982, lux:722.9229963, kwh:0.255979326, ppfd:47.91875, mode:'Auto', remarks:'Fiber-assisted'},
+      {date:'2026-02-18', dli:3.326832, led:14.673168, lux:580.9030906, kwh:0.271001185, ppfd:38.505, mode:'Auto', remarks:'Fiber-assisted'},
+      {date:'2026-02-19', dli:3.227688, led:14.772312, lux:563.5914091, kwh:0.272832292, ppfd:37.3575, mode:'Auto', remarks:'Fiber-assisted'},
+      {date:'2026-02-20', dli:3.403944, led:14.596056, lux:594.3677318, kwh:0.269576991, ppfd:39.3975, mode:'Auto', remarks:'Fiber-assisted'},
+      {date:'2026-02-21', dli:4.142016, led:13.857984, lux:723.243583, kwh:0.255945416, ppfd:47.94, mode:'Auto', remarks:'Fiber-assisted'},
+      {date:'2026-02-22', dli:4.143852, led:13.856148, lux:723.5641697, kwh:0.255911507, ppfd:47.96125, mode:'Auto', remarks:'Fiber-assisted'},
+      {date:'2026-02-23', dli:4.279716, led:13.720284, lux:747.2875851, kwh:0.253402212, ppfd:49.53375, mode:'Auto', remarks:'Fiber-assisted'},
+      {date:'2026-02-24', dli:1.500012, led:16.499988, lux:261.9193295, kwh:0.304741028, ppfd:17.36125, mode:'Auto', remarks:'Fiber-assisted'},
+      {date:'2026-02-25', dli:3.297456, led:14.702544, lux:575.7737035, kwh:0.271543736, ppfd:38.165, mode:'Auto', remarks:'Fiber-assisted'},
+      {date:'2026-02-26', dli:3.93822, led:14.06178, lux:687.6584599, kwh:0.259709358, ppfd:45.58125, mode:'Auto', remarks:'Fiber-assisted'},
+      {date:'2026-02-27', dli:3.862944, led:14.137056, lux:674.5144054, kwh:0.261099643, ppfd:44.71, mode:'Auto', remarks:'Fiber-assisted'},
+      {date:'2026-02-28', dli:4.219128, led:13.780872, lux:736.7082242, kwh:0.254521222, ppfd:48.8325, mode:'Auto', remarks:'Fiber-assisted'},
+      {date:'2026-03-01', dli:4.3605, led:13.6395, lux:761.3933997, kwh:0.251910199, ppfd:50.46875, mode:'Auto', remarks:'Fiber-assisted'},
+      {date:'2026-03-02', dli:3.835404, led:14.164596, lux:669.705605, kwh:0.261608284, ppfd:44.39125, mode:'Auto', remarks:'Fiber-assisted'},
+      {date:'2026-03-03', dli:4.171392, led:13.828608, lux:728.3729701, kwh:0.255402866, ppfd:48.28, mode:'Auto', remarks:'Fiber-assisted'},
+      {date:'2026-03-04', dli:4.384368, led:13.615632, lux:765.5610267, kwh:0.251469377, ppfd:50.745, mode:'Auto', remarks:'Fiber-assisted'},
+      {date:'2026-03-05', dli:3.604068, led:14.395932, lux:629.3116815, kwh:0.265880867, ppfd:41.71375, mode:'Auto', remarks:'Fiber-assisted'},
+      {date:'2026-03-06', dli:4.538592, led:13.461408, lux:792.4903091, kwh:0.248620988, ppfd:52.53, mode:'Auto', remarks:'Fiber-assisted'},
+      {date:'2026-03-07', dli:4.310928, led:13.689072, lux:752.7375589, kwh:0.252825752, ppfd:49.895, mode:'Auto', remarks:'Fiber-assisted'},
+      {date:'2026-03-08', dli:3.936384, led:14.063616, lux:687.3378732, kwh:0.259743268, ppfd:45.56, mode:'Auto', remarks:'Fiber-assisted'},
+      {date:'2026-03-09', dli:1.00062, led:16.99938, lux:174.7197486, kwh:0.313964382, ppfd:11.58125, mode:'Auto', remarks:'Fiber-assisted'},
+      {date:'2026-03-10', dli:2.750328, led:15.249672, lux:480.2388685, kwh:0.281648734, ppfd:31.8325, mode:'Auto', remarks:'Fiber-assisted'},
+      {date:'2026-03-11', dli:4.105296, led:13.894704, lux:716.8318491, kwh:0.256623604, ppfd:47.515, mode:'Auto', remarks:'Fiber-assisted'},
+      {date:'2026-03-12', dli:4.184244, led:13.815756, lux:730.617077, kwh:0.2551655, ppfd:48.42875, mode:'Auto', remarks:'Fiber-assisted'},
+      {date:'2026-03-13', dli:4.444956, led:13.555044, lux:776.1403876, kwh:0.250350367, ppfd:51.44625, mode:'Auto', remarks:'Fiber-assisted'},
+      {date:'2026-03-14', dli:4.428432, led:13.571568, lux:773.2551074, kwh:0.250655551, ppfd:51.255, mode:'Auto', remarks:'Fiber-assisted'},
+      {date:'2026-03-15', dli:4.343976, led:13.656024, lux:758.5081194, kwh:0.252215383, ppfd:50.2775, mode:'Auto', remarks:'Fiber-assisted'},
+      {date:'2026-03-16', dli:3.927204, led:14.072796, lux:685.7349398, kwh:0.259912815, ppfd:45.45375, mode:'Auto', remarks:'Fiber-assisted'},
+      {date:'2026-03-17', dli:4.50738, led:13.49262, lux:787.0403353, kwh:0.249197448, ppfd:52.16875, mode:'Auto', remarks:'Fiber-assisted'},
+      {date:'2026-03-18', dli:4.283388, led:13.716612, lux:747.9287585, kwh:0.253334393, ppfd:49.57625, mode:'Auto', remarks:'Fiber-assisted'},
+      {date:'2026-03-19', dli:4.657932, led:13.342068, lux:813.3284442, kwh:0.246416878, ppfd:53.91125, mode:'Auto', remarks:'Fiber-assisted'},
+      {date:'2026-03-20', dli:4.689144, led:13.310856, lux:818.778418, kwh:0.245840418, ppfd:54.2725, mode:'Auto', remarks:'Fiber-assisted'},
+      {date:'2026-03-21', dli:4.652424, led:13.347576, lux:812.3666841, kwh:0.246518606, ppfd:53.8475, mode:'Auto', remarks:'Fiber-assisted'},
+      {date:'2026-03-22', dli:3.760128, led:14.239872, lux:656.5615506, kwh:0.262998569, ppfd:43.52, mode:'Auto', remarks:'Fiber-assisted'},
+      {date:'2026-03-23', dli:4.083264, led:18, lux:712.9848088, kwh:0.332445, ppfd:47.26, mode:'Full Brightness', remarks:'Hybrid LED forced to 100% due to larger canopy'},
+      {date:'2026-03-24', dli:4.766256, led:18, lux:832.2430592, kwh:0.332445, ppfd:55.165, mode:'Full Brightness', remarks:'Hybrid LED forced to 100% due to larger canopy'},
+      {date:'2026-03-25', dli:4.65426, led:18, lux:812.6872708, kwh:0.332445, ppfd:53.86875, mode:'Full Brightness', remarks:'Hybrid LED forced to 100% due to larger canopy'},
+      {date:'2026-03-26', dli:4.432104, led:18, lux:773.8962808, kwh:0.332445, ppfd:51.2975, mode:'Full Brightness', remarks:'Hybrid LED forced to 100% due to larger canopy'},
+      {date:'2026-03-27', dli:4.503708, led:18, lux:786.3991619, kwh:0.332445, ppfd:52.12625, mode:'Full Brightness', remarks:'Hybrid LED forced to 100% due to larger canopy'},
+      {date:'2026-03-28', dli:4.334796, led:18, lux:756.905186, kwh:0.332445, ppfd:50.17125, mode:'Full Brightness', remarks:'Hybrid LED forced to 100% due to larger canopy'},
+      {date:'2026-03-29', dli:4.652424, led:18, lux:812.3666841, kwh:0.332445, ppfd:53.8475, mode:'Full Brightness', remarks:'Hybrid LED forced to 100% due to larger canopy'},
+      {date:'2026-03-30', dli:4.661604, led:18, lux:813.9696176, kwh:0.332445, ppfd:53.95375, mode:'Full Brightness', remarks:'Hybrid LED forced to 100% due to larger canopy'},
+      {date:'2026-03-31', dli:4.762584, led:18, lux:831.6018858, kwh:0.332445, ppfd:55.1225, mode:'Full Brightness', remarks:'Hybrid LED forced to 100% due to larger canopy'},
+      {date:'2026-04-01', dli:4.771764, led:18, lux:833.2048193, kwh:0.332445, ppfd:55.22875, mode:'Full Brightness', remarks:'Hybrid LED forced to 100% due to larger canopy'},
+      {date:'2026-04-02', dli:4.657932, led:18, lux:813.3284442, kwh:0.332445, ppfd:53.91125, mode:'Full Brightness', remarks:'Hybrid LED forced to 100% due to larger canopy'},
+      {date:'2026-04-03', dli:4.24116, led:18, lux:740.5552645, kwh:0.332445, ppfd:49.0875, mode:'Full Brightness', remarks:'Hybrid LED forced to 100% due to larger canopy'},
+      {date:'2026-04-04', dli:4.703832, led:18, lux:821.3431116, kwh:0.332445, ppfd:54.4425, mode:'Full Brightness', remarks:'Hybrid LED forced to 100% due to larger canopy'},
+      {date:'2026-04-05', dli:4.806648, led:18, lux:839.2959665, kwh:0.332445, ppfd:55.6325, mode:'Full Brightness', remarks:'Hybrid LED forced to 100% due to larger canopy'},
+      {date:'2026-04-06', dli:4.659768, led:18, lux:813.6490309, kwh:0.332445, ppfd:53.9325, mode:'Full Brightness', remarks:'Hybrid LED forced to 100% due to larger canopy'},
+      {date:'2026-04-07', dli:4.58082, led:13.41918, lux:799.863803, kwh:0.247841072, ppfd:53.01875, mode:'Auto', remarks:'Fiber-assisted auto control'},
+      {date:'2026-04-08', dli:3.927204, led:14.072796, lux:685.7349398, kwh:0.259912815, ppfd:45.45375, mode:'Auto', remarks:'Fiber-assisted auto control'},
+      {date:'2026-04-09', dli:4.500036, led:13.499964, lux:785.7579885, kwh:0.249333085, ppfd:52.08375, mode:'Auto', remarks:'Fiber-assisted auto control'},
+      {date:'2026-04-10', dli:4.70934, led:13.29066, lux:822.3048717, kwh:0.245467415, ppfd:54.50625, mode:'Auto', remarks:'Fiber-assisted auto control'},
+      {date:'2026-04-11', dli:4.632228, led:13.367772, lux:808.8402305, kwh:0.246891609, ppfd:53.61375, mode:'Auto', remarks:'Fiber-assisted auto control'},
+      {date:'2026-04-12', dli:4.138344, led:13.861656, lux:722.6024096, kwh:0.256013235, ppfd:47.8975, mode:'Auto', remarks:'Fiber-assisted auto control'},
+      {date:'2026-04-13', dli:4.382532, led:13.617468, lux:765.24044, kwh:0.251503286, ppfd:50.72375, mode:'Auto', remarks:'Fiber-assisted auto control'},
+      {date:'2026-04-14', dli:4.757076, led:13.242924, lux:830.6401257, kwh:0.244585771, ppfd:55.05875, mode:'Auto', remarks:'Fiber-assisted auto control'},
+      {date:'2026-04-15', dli:4.889268, led:13.110732, lux:853.7223677, kwh:0.242144294, ppfd:56.58875, mode:'Auto', remarks:'Fiber-assisted auto control'},
+      {date:'2026-04-16', dli:4.97556, led:13.02444, lux:868.7899424, kwh:0.240550553, ppfd:57.5875, mode:'Auto', remarks:'Fiber-assisted auto control'},
+      {date:'2026-04-17', dli:4.913136, led:13.086864, lux:857.8899948, kwh:0.241703472, ppfd:56.865, mode:'Auto', remarks:'Fiber-assisted auto control'},
+      {date:'2026-04-18', dli:4.813992, led:13.186008, lux:840.5783133, kwh:0.243534579, ppfd:55.7175, mode:'Auto', remarks:'Fiber-assisted auto control'},
+      {date:'2026-04-19', dli:4.426596, led:13.573404, lux:772.9345207, kwh:0.250689461, ppfd:51.23375, mode:'Auto', remarks:'Fiber-assisted auto control'},
+      {date:'2026-04-20', dli:4.843368, led:13.156632, lux:845.7077004, kwh:0.242992029, ppfd:56.0575, mode:'Auto', remarks:'Fiber-assisted auto control'},
+      {date:'2026-04-21', dli:4.825008, led:13.174992, lux:842.5018334, kwh:0.243331123, ppfd:55.845, mode:'Auto', remarks:'Fiber-assisted auto control'},
+      {date:'2026-04-22', dli:4.454136, led:13.545864, lux:777.7433211, kwh:0.25018082, ppfd:51.5525, mode:'Auto', remarks:'Fiber-assisted auto control'},
+      {date:'2026-04-23', dli:4.547772, led:13.452228, lux:794.0932425, kwh:0.248451441, ppfd:52.63625, mode:'Auto', remarks:'Fiber-assisted auto control'},
+      {date:'2026-04-24', dli:3.851928, led:14.148072, lux:672.5908853, kwh:0.2613031, ppfd:44.5825, mode:'Auto', remarks:'Fiber-assisted auto control'},
+      {date:'2026-04-25', dli:4.399056, led:13.600944, lux:768.1257203, kwh:0.251198102, ppfd:50.915, mode:'Auto', remarks:'Fiber-assisted auto control'},
+      {date:'2026-04-26', dli:4.430268, led:13.569732, lux:773.5756941, kwh:0.250621642, ppfd:51.27625, mode:'Auto', remarks:'Fiber-assisted auto control'},
+      {date:'2026-04-27', dli:4.20444, led:13.79556, lux:734.1435306, kwh:0.254792497, ppfd:48.6625, mode:'Auto', remarks:'Fiber-assisted auto control'},
+      {date:'2026-04-28', dli:0.429624, led:17.570376, lux:75.01728654, kwh:0.324510203, ppfd:4.9725, mode:'Auto', remarks:'Fiber-assisted auto control'},
+      {date:'2026-04-29', dli:3.000024, led:14.999976, lux:523.838659, kwh:0.277037057, ppfd:34.7225, mode:'Auto', remarks:'Fiber-assisted auto control'},
+      {date:'2026-04-30', dli:4.4064, led:18, lux:769.4080671, kwh:0.332445, ppfd:51, mode:'Full Brightness', remarks:'Hybrid LED forced to 100% due to larger canopy'},
+      {date:'2026-05-01', dli:2.162808, led:18, lux:377.6511262, kwh:0.332445, ppfd:25.0325, mode:'Full Brightness', remarks:'Hybrid LED forced to 100% due to larger canopy'},
+      {date:'2026-05-02', dli:4.428432, led:18, lux:773.2551074, kwh:0.332445, ppfd:51.255, mode:'Full Brightness', remarks:'Hybrid LED forced to 100% due to larger canopy'},
+      {date:'2026-05-03', dli:2.943108, led:18, lux:513.9004715, kwh:0.332445, ppfd:34.06375, mode:'Full Brightness', remarks:'Hybrid LED forced to 100% due to larger canopy'},
+      {date:'2026-05-04', dli:1.755216, led:18, lux:306.48088, kwh:0.332445, ppfd:20.315, mode:'Full Brightness', remarks:'Hybrid LED forced to 100% due to larger canopy'},
+      {date:'2026-05-05', dli:4.107132, led:18, lux:717.1524358, kwh:0.332445, ppfd:47.53625, mode:'Full Brightness', remarks:'Hybrid LED forced to 100% due to larger canopy'},
+      {date:'2026-05-06', dli:4.6818, led:18, lux:817.4960712, kwh:0.332445, ppfd:54.1875, mode:'Full Brightness', remarks:'Hybrid LED forced to 100% due to larger canopy'},
+      {date:'2026-05-07', dli:2.346408, led:18, lux:409.7097957, kwh:0.332445, ppfd:27.1575, mode:'Full Brightness', remarks:'Hybrid LED forced to 100% due to larger canopy'},
+      {date:'2026-05-08', dli:0.451656, led:18, lux:78.86432687, kwh:0.332445, ppfd:5.2275, mode:'Full Brightness', remarks:'Hybrid LED forced to 100% due to larger canopy'},
+      {date:'2026-05-09', dli:4.602852, led:18, lux:803.7108434, kwh:0.332445, ppfd:53.27375, mode:'Full Brightness', remarks:'Hybrid LED forced to 100% due to larger canopy'},
+      {date:'2026-05-10', dli:4.60836, led:18, lux:804.6726035, kwh:0.332445, ppfd:53.3375, mode:'Full Brightness', remarks:'Hybrid LED forced to 100% due to larger canopy'},
+      {date:'2026-05-11', dli:4.582656, led:18, lux:800.1843897, kwh:0.332445, ppfd:53.04, mode:'Full Brightness', remarks:'Hybrid LED forced to 100% due to larger canopy'},
+      {date:'2026-05-12', dli:4.648752, led:18, lux:811.7255107, kwh:0.332445, ppfd:53.805, mode:'Full Brightness', remarks:'Hybrid LED forced to 100% due to larger canopy'},
+      {date:'2026-05-13', dli:4.391712, led:18, lux:766.8433735, kwh:0.332445, ppfd:50.83, mode:'Full Brightness', remarks:'Hybrid LED forced to 100% due to larger canopy'},
+      {date:'2026-05-14', dli:4.079592, led:18, lux:712.3436354, kwh:0.332445, ppfd:47.2175, mode:'Full Brightness', remarks:'Hybrid LED forced to 100% due to larger canopy'}
+    ];
 
-      var calibration = {
-        fiberLuxMultiplier: DEFAULT_FIBER_LUX_MULTIPLIER,
-        fiberPpfdMultiplier: DEFAULT_FIBER_PPFD_MULTIPLIER,
-        fiberLuxOffset: 0,
-        fiberPpfdOffset: 0,
-        phOffset: 0,
-        waterOffset: 0,
-        phMultiplier: 1,
-        waterMultiplier: 1
-      };
+    let dashboardChart;
+    let historyChart;
 
-      function el(id) { return document.getElementById(id); }
-      function setText(id, text) { var node = el(id); if (node) node.textContent = text; }
-      function clamp(v, min, max) { var n = Number(v); if (!isFinite(n)) return min; return Math.min(max, Math.max(min, n)); }
-      function fmt(n, d) { var x = Number(n); if (!isFinite(x)) return "0"; return x.toLocaleString(undefined, { maximumFractionDigits: d, minimumFractionDigits: d }); }
+    document.querySelectorAll('.tab').forEach(button => {
+      button.addEventListener('click', () => {
+        document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+        button.classList.add('active');
+        document.getElementById(button.dataset.tab).classList.add('active');
+      });
+    });
 
-      function setPill(text, mode) {
-        var pill = el("connectionPill");
-        if (!pill) return;
-        pill.textContent = text;
-        if (mode === "ok") pill.className = "pill";
-        else if (mode === "bad") pill.className = "pill bad-pill";
-        else pill.className = "pill warn-pill";
+    function fmt(value, decimals = 2) {
+      if (value === null || value === undefined || Number.isNaN(Number(value))) return '-';
+      return Number(value).toFixed(decimals);
+    }
+
+    function computeCalibration() {
+      const webDLI = Number(document.getElementById('webDLI').value);
+      const actualDLI = Number(document.getElementById('actualDLI').value);
+      const webLux = Number(document.getElementById('webLux').value);
+      const actualLux = Number(document.getElementById('actualLux').value);
+      const webPPFD = Number(document.getElementById('webPPFD').value);
+      const actualPPFD = Number(document.getElementById('actualPPFD').value);
+
+      if (webDLI > 0) document.getElementById('dliCal').value = (actualDLI / webDLI).toFixed(6);
+      if (webLux > 0) document.getElementById('luxCal').value = (actualLux / webLux).toFixed(6);
+      if (webPPFD > 0) document.getElementById('ppfdCal').value = (actualPPFD / webPPFD).toFixed(6);
+
+      if (actualLux > 0) document.getElementById('luxToPPFD').value = (actualPPFD / actualLux).toFixed(8);
+    }
+
+    async function saveCalibration() {
+      const params = new URLSearchParams({
+        dliCal: document.getElementById('dliCal').value,
+        luxCal: document.getElementById('luxCal').value,
+        ppfdCal: document.getElementById('ppfdCal').value,
+        luxToPPFD: document.getElementById('luxToPPFD').value,
+        targetDLI: document.getElementById('targetDLI').value
+      });
+
+      try {
+        const res = await fetch('/save_calibration?' + params.toString());
+        alert(res.ok ? 'Calibration saved to ESP32.' : 'ESP32 returned an error while saving calibration.');
+      } catch (e) {
+        alert('Could not connect to ESP32 /save_calibration endpoint.');
       }
+    }
 
-      function applyPreCalibrationPreset() {
-        if (localStorage.getItem("calibrationPresetVersion") !== CALIBRATION_PRESET_VERSION) {
-          localStorage.setItem("calFiberLux", DEFAULT_FIBER_LUX_MULTIPLIER);
-          localStorage.setItem("calFiberPpfd", DEFAULT_FIBER_PPFD_MULTIPLIER);
-          localStorage.setItem("calFiberLuxOffset", 0);
-          localStorage.setItem("calFiberPpfdOffset", 0);
-          localStorage.setItem("calibrationPresetVersion", CALIBRATION_PRESET_VERSION);
-        }
+    async function loadCalibrationFromESP32() {
+      try {
+        const res = await fetch('/calibration');
+        const data = await res.json();
+        if (data.dliCal !== undefined) document.getElementById('dliCal').value = data.dliCal;
+        if (data.luxCal !== undefined) document.getElementById('luxCal').value = data.luxCal;
+        if (data.ppfdCal !== undefined) document.getElementById('ppfdCal').value = data.ppfdCal;
+        if (data.luxToPPFD !== undefined) document.getElementById('luxToPPFD').value = data.luxToPPFD;
+        if (data.targetDLI !== undefined) document.getElementById('targetDLI').value = data.targetDLI;
+      } catch (e) {
+        alert('Could not load calibration from ESP32 /calibration endpoint.');
       }
+    }
 
-      function loadNumber(key, fallback) {
-        var saved = Number(localStorage.getItem(key));
-        return isFinite(saved) ? saved : fallback;
+    function updateBrightnessLabel() {
+      document.getElementById('hybridBrightnessValue').textContent = document.getElementById('hybridBrightness').value;
+    }
+
+    async function setHybridMode(mode) {
+      try {
+        const res = await fetch('/set_hybrid_mode?mode=' + encodeURIComponent(mode));
+        alert(res.ok ? 'Hybrid LED mode set to ' + mode.toUpperCase() + '.' : 'ESP32 returned an error.');
+        fetchLiveData();
+      } catch (e) {
+        alert('Could not connect to ESP32 /set_hybrid_mode endpoint.');
       }
+    }
 
-      function loadPositiveNumber(key, fallback) {
-        var saved = Number(localStorage.getItem(key));
-        if (!isFinite(saved) || saved <= 0) return fallback;
-        return saved;
+    async function setHybridBrightness() {
+      const value = document.getElementById('hybridBrightness').value;
+      try {
+        const res = await fetch('/set_hybrid_brightness?value=' + encodeURIComponent(value));
+        if (!res.ok) alert('ESP32 returned an error while setting brightness.');
+        fetchLiveData();
+      } catch (e) {
+        alert('Could not connect to ESP32 /set_hybrid_brightness endpoint.');
       }
+    }
 
-      function safePositive(value, fallback) {
-        var n = Number(value);
-        if (!isFinite(n) || n <= 0) return fallback;
-        return n;
+    async function saveOverrideReason() {
+      const reason = document.getElementById('overrideReason').value;
+      try {
+        const res = await fetch('/save_override_reason?reason=' + encodeURIComponent(reason));
+        alert(res.ok ? 'Override reason saved.' : 'ESP32 returned an error while saving reason.');
+      } catch (e) {
+        alert('Could not connect to ESP32 /save_override_reason endpoint.');
       }
+    }
 
-      function setInput(id, value) { var input = el(id); if (input) input.value = value; }
+    function setModeBadge(mode, brightness) {
+      const badge = document.getElementById('modeBadge');
+      const normalized = String(mode || 'auto').toLowerCase();
+      badge.className = 'status-pill';
+      if (normalized === 'manual') badge.classList.add('manual');
+      if (normalized === 'full') badge.classList.add('full');
+      badge.textContent = normalized.toUpperCase();
+      document.getElementById('brightnessText').textContent = 'Brightness: ' + Number(brightness || 0).toFixed(0) + '%';
+    }
 
-      function showPage(pageId) {
-        el("dashboardPage").classList.toggle("hidden", pageId !== "dashboardPage");
-        el("calibrationPage").classList.toggle("hidden", pageId !== "calibrationPage");
-        if (pageId === "dashboardPage") renderAll();
+    async function fetchLiveData() {
+      try {
+        const res = await fetch('/data');
+        const data = await res.json();
+
+        const target = Number(data.targetDLI || TARGET_DLI_DEFAULT);
+        const dli = Number(data.fiberDLI || data.dliH || 0);
+        const ledSupplied = data.ledSuppliedDLI !== undefined ? Number(data.ledSuppliedDLI) : Math.max(0, target - dli);
+
+        document.getElementById('fiberDLI').textContent = fmt(dli, 3);
+        document.getElementById('aveLux').textContent = fmt(Number(data.aveLux || data.luxH || 0), 0);
+        document.getElementById('avePPFD').textContent = fmt(Number(data.avePPFD || data.ppfdH || 0), 2);
+        document.getElementById('ledSuppliedDLI').textContent = fmt(ledSupplied, 3);
+        document.getElementById('totalDLI').textContent = fmt(target, 2);
+        setModeBadge(data.hybridMode || 'auto', data.hybridBrightness || 0);
+
+        updateDashboardChart(dli, ledSupplied, target);
+      } catch (e) {
+        // Fallback sample using the calibration reference if ESP32 is offline
+        const dli = 4.079592;
+        const target = 18;
+        const ledSupplied = 18;
+        document.getElementById('fiberDLI').textContent = fmt(dli, 3);
+        document.getElementById('aveLux').textContent = fmt(712.3436354, 0);
+        document.getElementById('avePPFD').textContent = fmt(47.2175, 2);
+        document.getElementById('ledSuppliedDLI').textContent = fmt(ledSupplied, 3);
+        document.getElementById('totalDLI').textContent = fmt(target, 2);
+        setModeBadge('full', 100);
+        updateDashboardChart(dli, ledSupplied, target);
       }
+    }
 
-      function updateClock() {
-        var now = new Date();
-        setText("clock", now.toLocaleTimeString());
-        setText("dateText", now.toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric" }));
-      }
-
-      function loadCalibration() {
-        applyPreCalibrationPreset();
-        calibration.fiberLuxMultiplier = loadPositiveNumber("calFiberLux", DEFAULT_FIBER_LUX_MULTIPLIER);
-        calibration.fiberPpfdMultiplier = loadPositiveNumber("calFiberPpfd", DEFAULT_FIBER_PPFD_MULTIPLIER);
-        calibration.fiberLuxOffset = loadNumber("calFiberLuxOffset", 0);
-        calibration.fiberPpfdOffset = loadNumber("calFiberPpfdOffset", 0);
-        calibration.phOffset = loadNumber("calPH", 0);
-        calibration.waterOffset = loadNumber("calWater", 0);
-        calibration.phMultiplier = loadPositiveNumber("calPHMultiplier", 1);
-        calibration.waterMultiplier = loadPositiveNumber("calWaterMultiplier", 1);
-        hybridLedMaxPpfd = loadNumber("calHybridLedMaxPpfd", loadNumber("calLedMaxPpfd", 204.43));
-        fullLedMaxPpfd = loadNumber("calFullLedMaxPpfd", loadNumber("calLedMaxPpfd", 204.43));
-        ledEnergyAt18Dli = loadNumber("calLedEnergy", 0.332445);
-        luxSetpoint = loadNumber("calLuxSetpoint", 10000);
-        fiberEfficiency = clamp(loadNumber("calFiberEfficiency", 0.25), 0, 1);
-
-        setInput("calFiberLux", calibration.fiberLuxMultiplier);
-        setInput("calFiberPpfd", calibration.fiberPpfdMultiplier);
-        setInput("calFiberLuxOffset", calibration.fiberLuxOffset);
-        setInput("calFiberPpfdOffset", calibration.fiberPpfdOffset);
-        setInput("calPH", calibration.phOffset);
-        setInput("calWater", calibration.waterOffset);
-        setInput("calPHMultiplier", calibration.phMultiplier);
-        setInput("calWaterMultiplier", calibration.waterMultiplier);
-        setInput("calHybridLedMaxPpfd", hybridLedMaxPpfd);
-        setInput("calFullLedMaxPpfd", fullLedMaxPpfd);
-        setInput("calLedEnergy", ledEnergyAt18Dli);
-        setInput("calLuxSetpoint", luxSetpoint);
-        setInput("calFiberEfficiency", fiberEfficiency.toFixed(3));
-      }
-
-      function saveCalibration() {
-        calibration.fiberLuxMultiplier = safePositive(el("calFiberLux").value, DEFAULT_FIBER_LUX_MULTIPLIER);
-        calibration.fiberPpfdMultiplier = safePositive(el("calFiberPpfd").value, DEFAULT_FIBER_PPFD_MULTIPLIER);
-        calibration.fiberLuxOffset = Number(el("calFiberLuxOffset").value || 0);
-        calibration.fiberPpfdOffset = Number(el("calFiberPpfdOffset").value || 0);
-        calibration.phOffset = Number(el("calPH").value || 0);
-        calibration.waterOffset = Number(el("calWater").value || 0);
-        calibration.phMultiplier = safePositive(el("calPHMultiplier").value, 1);
-        calibration.waterMultiplier = safePositive(el("calWaterMultiplier").value, 1);
-        hybridLedMaxPpfd = Number(el("calHybridLedMaxPpfd").value || 204.43);
-        fullLedMaxPpfd = Number(el("calFullLedMaxPpfd").value || 204.43);
-        ledEnergyAt18Dli = Number(el("calLedEnergy").value || 0.332445);
-        luxSetpoint = Number(el("calLuxSetpoint").value || 10000);
-        fiberEfficiency = clamp(el("calFiberEfficiency").value || 0.25, 0, 1);
-
-        localStorage.setItem("calFiberLux", calibration.fiberLuxMultiplier);
-        localStorage.setItem("calFiberPpfd", calibration.fiberPpfdMultiplier);
-        localStorage.setItem("calFiberLuxOffset", calibration.fiberLuxOffset);
-        localStorage.setItem("calFiberPpfdOffset", calibration.fiberPpfdOffset);
-        localStorage.setItem("calPH", calibration.phOffset);
-        localStorage.setItem("calWater", calibration.waterOffset);
-        localStorage.setItem("calPHMultiplier", calibration.phMultiplier);
-        localStorage.setItem("calWaterMultiplier", calibration.waterMultiplier);
-        localStorage.setItem("calHybridLedMaxPpfd", hybridLedMaxPpfd);
-        localStorage.setItem("calFullLedMaxPpfd", fullLedMaxPpfd);
-        localStorage.setItem("calLedEnergy", ledEnergyAt18Dli);
-        localStorage.setItem("calLuxSetpoint", luxSetpoint);
-        localStorage.setItem("calFiberEfficiency", fiberEfficiency);
-        setText("calibrationStatus", "Calibration saved successfully.");
-        renderAll();
-      }
-
-      function resetCalibration() {
-        var keys = ["calFiberLux", "calFiberPpfd", "calFiberLuxOffset", "calFiberPpfdOffset", "calPH", "calWater", "calPHMultiplier", "calWaterMultiplier", "calLedMaxPpfd", "calHybridLedMaxPpfd", "calFullLedMaxPpfd", "calLedEnergy", "calLuxSetpoint", "calFiberEfficiency", "calibrationPresetVersion"];
-        for (var i = 0; i < keys.length; i++) localStorage.removeItem(keys[i]);
-        loadCalibration();
-        setText("calibrationStatus", "Calibration reset to default values.");
-        renderAll();
-      }
-
-      function loadFullLedControls() {
-        fullLedBrightnessValue = clamp(loadNumber("fullLedBrightnessValue", 255), 0, 255);
-        fullLedOnHourValue = clamp(loadNumber("fullLedOnHourValue", 7), 0, 23);
-        fullLedOffHourValue = clamp(loadNumber("fullLedOffHourValue", 21), 0, 23);
-        setInput("fullLedBrightnessControl", fullLedBrightnessValue);
-        setInput("fullLedOnHour", fullLedOnHourValue);
-        setInput("fullLedOffHour", fullLedOffHourValue);
-        updateFullLedControlText();
-      }
-
-      function updateFullLedControlText() {
-        var value = clamp(el("fullLedBrightnessControl").value, 0, 255);
-        setText("fullLedBrightnessText", value.toFixed(0));
-        setText("fullBrightnessReadout", value.toFixed(0));
-      }
-
-      function saveFullLedControls() {
-        fullLedBrightnessValue = clamp(el("fullLedBrightnessControl").value, 0, 255);
-        fullLedOnHourValue = clamp(el("fullLedOnHour").value, 0, 23);
-        fullLedOffHourValue = clamp(el("fullLedOffHour").value, 0, 23);
-        localStorage.setItem("fullLedBrightnessValue", fullLedBrightnessValue);
-        localStorage.setItem("fullLedOnHourValue", fullLedOnHourValue);
-        localStorage.setItem("fullLedOffHourValue", fullLedOffHourValue);
-        setText("fullLedControlStatus", "Full LED settings applied: " + fullLedBrightnessValue.toFixed(0) + " / 255, " + String(fullLedOnHourValue).padStart(2, "0") + ":00 to " + String(fullLedOffHourValue).padStart(2, "0") + ":00.");
-        renderAll();
-      }
-
-      function updateWaterAndPH() {
-        var now = new Date();
-        var minutes = now.getHours() * 60 + now.getMinutes();
-        var slowCycle = Math.sin(minutes / 1440 * Math.PI * 2);
-        var fasterCycle = Math.sin(minutes / 180 * Math.PI * 2);
-        var phRaw = 6.2 + slowCycle * 0.18 + fasterCycle * 0.04;
-        var waterRaw = 76 - (minutes / 1440) * 8 + Math.sin(minutes / 240 * Math.PI * 2) * 2;
-        var ph = clamp((phRaw * calibration.phMultiplier) + calibration.phOffset, 5.0, 8.5);
-        var water = clamp((waterRaw * calibration.waterMultiplier) + calibration.waterOffset, 0, 100);
-        setText("phLevel", fmt(ph, 2));
-        setText("waterLevel", fmt(water, 0));
-        el("phLevel").className = (ph < 5.5 || ph > 6.8) ? "value bad" : "value good";
-        el("waterLevel").className = water < 30 ? "value bad" : water < 50 ? "value warn" : "value blue";
-      }
-
-      async function fetchLightData(force) {
-        var now = Date.now();
-        if (!force && now - lastFetchMs < 5 * 60 * 1000) return;
-        setPill("Updating light data", "warn");
-        setText("lastUpdate", "Updating light data...");
-
-        var url = "https://api.open-meteo.com/v1/forecast?latitude=" + FIXED_LATITUDE + "&longitude=" + FIXED_LONGITUDE + "&timezone=Asia/Manila&timeformat=unixtime&current=shortwave_radiation&hourly=shortwave_radiation&past_days=1&forecast_days=2";
-
-        try {
-          var response = await fetch(url, { cache: "no-store" });
-          var data = await response.json();
-          if (!response.ok || data.error || !data.hourly || !data.hourly.shortwave_radiation) throw new Error("No light data");
-          lightData = data;
-          var currentValue = Number(data.current && data.current.shortwave_radiation);
-          liveRadiation = isFinite(currentValue) ? Math.max(0, currentValue) : getNearestRadiation(Date.now());
-          lastFetchMs = now;
-          updateLiveLightCards();
-          setText("lastUpdate", "Last light update: " + new Date().toLocaleTimeString());
-          setPill("Live light data active", "ok");
-          renderAll();
-        } catch (err) {
-          setPill("Light data unavailable", "bad");
-          setText("lastUpdate", "Unable to update light data. Check internet connection or refresh the page.");
-          console.error(err);
-        }
-      }
-
-      function getNearestRadiation(timeMs) {
-        if (!lightData || !lightData.hourly || !lightData.hourly.time) return 0;
-        var times = lightData.hourly.time;
-        var values = lightData.hourly.shortwave_radiation;
-        var best = 0;
-        var bestDiff = Infinity;
-        for (var i = 0; i < times.length; i++) {
-          var value = Number(values[i]);
-          if (!isFinite(value)) continue;
-          var t = Number(times[i]) * 1000;
-          var diff = Math.abs(t - timeMs);
-          if (diff < bestDiff) { bestDiff = diff; best = Math.max(0, value); }
-        }
-        return best;
-      }
-
-      function radiationAt(timeMs) {
-        if (!lightData || !lightData.hourly || !lightData.hourly.time) return liveRadiation;
-        var times = lightData.hourly.time;
-        var values = lightData.hourly.shortwave_radiation;
-        if (times.length === 0) return liveRadiation;
-        var firstTime = Number(times[0]) * 1000;
-        var lastTime = Number(times[times.length - 1]) * 1000;
-        if (timeMs <= firstTime) return Math.max(0, Number(values[0]) || 0);
-        if (timeMs >= lastTime) return Math.max(0, Number(values[values.length - 1]) || 0);
-        for (var i = 0; i < times.length - 1; i++) {
-          var t0 = Number(times[i]) * 1000;
-          var t1 = Number(times[i + 1]) * 1000;
-          var v0 = Math.max(0, Number(values[i]) || 0);
-          var v1 = Math.max(0, Number(values[i + 1]) || 0);
-          if (timeMs >= t0 && timeMs <= t1) {
-            var f = (timeMs - t0) / (t1 - t0);
-            return v0 + (v1 - v0) * f;
-          }
-        }
-        return getNearestRadiation(timeMs);
-      }
-
-      function isWithinWindow(date, startHour, endHour) {
-        var h = date.getHours() + date.getMinutes() / 60;
-        if (startHour === endHour) return true;
-        if (startHour < endHour) return h >= startHour && h < endHour;
-        return h >= startHour || h < endHour;
-      }
-
-      function solarCollectionFactor(date) {
-        var h = date.getHours() + date.getMinutes() / 60 + date.getSeconds() / 3600;
-        if (h <= SOLAR_HARVEST_START_HOUR || h >= SOLAR_HARVEST_END_HOUR) return 0;
-
-        var factor;
-        if (h <= SOLAR_HARVEST_PEAK_HOUR) {
-          factor = Math.sin(((h - SOLAR_HARVEST_START_HOUR) / (SOLAR_HARVEST_PEAK_HOUR - SOLAR_HARVEST_START_HOUR)) * Math.PI / 2);
-        } else {
-          factor = Math.sin(((SOLAR_HARVEST_END_HOUR - h) / (SOLAR_HARVEST_END_HOUR - SOLAR_HARVEST_PEAK_HOUR)) * Math.PI / 2);
-        }
-        return Math.pow(clamp(factor, 0, 1), 1.35);
-      }
-
-      function fiberRadiationAt(timeMs) {
-        var d = new Date(timeMs);
-        return radiationAt(timeMs) * solarCollectionFactor(d);
-      }
-
-      function currentFiberRadiation() {
-        return liveRadiation * solarCollectionFactor(new Date());
-      }
-
-      function updateLiveLightCards() {
-        var luxMultiplier = safePositive(calibration.fiberLuxMultiplier, DEFAULT_FIBER_LUX_MULTIPLIER);
-        var ppfdMultiplier = safePositive(calibration.fiberPpfdMultiplier, DEFAULT_FIBER_PPFD_MULTIPLIER);
-        var activeFiberRadiation = currentFiberRadiation();
-        var fiberLux = Math.max(0, activeFiberRadiation * 120 * fiberEfficiency * luxMultiplier + calibration.fiberLuxOffset);
-        var fiberPpfd = Math.round(fiberLux) > 0 && activeFiberRadiation > 0 ? Math.max(0, activeFiberRadiation * 1.96 * fiberEfficiency * ppfdMultiplier + calibration.fiberPpfdOffset) : 0;
-        setText("fiberLux", fmt(fiberLux, 0));
-        setText("fiberPpfd", fmt(fiberPpfd, 0));
-      }
-
-      function simulateToday() {
-        if (!lightData) return null;
-        var now = new Date();
-        var start = new Date(now); start.setHours(0, 0, 0, 0);
-        var end = new Date(now); end.setHours(23, 59, 59, 999);
-        var dtSec = 300;
-        var dtMs = dtSec * 1000;
-        var ledKwhPerDli = ledEnergyAt18Dli / 18;
-        var fullFraction = fullLedBrightnessValue / 255;
-        var fiberDli = 0;
-        var hybridDli = 0;
-        var fullDli = 0;
-        var hybridLedDli = 0;
-        var fullLedDli = 0;
-        var hybridFraction = 0;
-        var labels = [];
-        var fiberSeries = [];
-        var hybridSeries = [];
-        var fullSeries = [];
-        var lightLabels = [];
-        var luxSeries = [];
-        var ppfdSeries = [];
-        var luxSum = 0;
-        var ppfdSum = 0;
-        var sampleCount = 0;
-
-        for (var t = start.getTime(); t <= now.getTime(); t += dtMs) {
-          var d = new Date(t);
-          var rad = fiberRadiationAt(t);
-          var luxMultiplier = safePositive(calibration.fiberLuxMultiplier, DEFAULT_FIBER_LUX_MULTIPLIER);
-          var ppfdMultiplier = safePositive(calibration.fiberPpfdMultiplier, DEFAULT_FIBER_PPFD_MULTIPLIER);
-          var fiberLux = Math.max(0, rad * 120 * fiberEfficiency * luxMultiplier + calibration.fiberLuxOffset);
-          var fiberPpfd = Math.round(fiberLux) > 0 && rad > 0 ? Math.max(0, rad * 1.96 * fiberEfficiency * ppfdMultiplier + calibration.fiberPpfdOffset) : 0;
-          luxSum += fiberLux;
-          ppfdSum += fiberPpfd;
-          sampleCount += 1;
-          var hybridLedPpfd = 0;
-          var fullLedPpfd = 0;
-
-          if (hybridDli < TARGET_DLI && isWithinWindow(d, HYBRID_ON_HOUR, HYBRID_OFF_HOUR)) {
-            var deficit = Math.max(0, luxSetpoint - fiberLux);
-            hybridFraction = luxSetpoint > 0 ? clamp(deficit / luxSetpoint, 0, 1) : 0;
-            hybridLedPpfd = hybridLedMaxPpfd * hybridFraction;
-          } else {
-            hybridFraction = 0;
-            hybridLedPpfd = 0;
-          }
-
-          if (fullDli < TARGET_DLI && isWithinWindow(d, fullLedOnHourValue, fullLedOffHourValue)) fullLedPpfd = fullLedMaxPpfd * fullFraction;
-          else fullLedPpfd = 0;
-
-          var fiberStepDli = fiberPpfd * dtSec / 1000000;
-          var hybridLedStepDli = hybridLedPpfd * dtSec / 1000000;
-          var fullLedStepDli = fullLedPpfd * dtSec / 1000000;
-
-          fiberDli += fiberStepDli;
-
-          var hybridRemaining = Math.max(0, TARGET_DLI - hybridDli);
-          var acceptedFiberForHybrid = Math.min(fiberStepDli, hybridRemaining);
-          var acceptedHybridLedDli = Math.min(hybridLedStepDli, Math.max(0, hybridRemaining - acceptedFiberForHybrid));
-          hybridDli += acceptedFiberForHybrid + acceptedHybridLedDli;
-          hybridLedDli += acceptedHybridLedDli;
-
-          var fullRemaining = Math.max(0, TARGET_DLI - fullDli);
-          var acceptedFullLedDli = Math.min(fullLedStepDli, fullRemaining);
-          fullDli += acceptedFullLedDli;
-          fullLedDli += acceptedFullLedDli;
-
-          if (d.getMinutes() === 0 || t + dtMs > now.getTime()) {
-            var fiberRate = fiberPpfd * 3600 / 1000000;
-            var hybridLedRate = hybridLedPpfd * 3600 / 1000000;
-            var fullLedRate = fullLedPpfd * 3600 / 1000000;
-            labels.push(d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
-            fiberSeries.push(Number(fiberRate.toFixed(3)));
-            hybridSeries.push(Number(hybridLedRate.toFixed(3)));
-            fullSeries.push(Number(fullLedRate.toFixed(3)));
-          }
-        }
-
-        var remainingFiberDli = 0;
-        for (var rt = now.getTime(); rt <= end.getTime(); rt += dtMs) {
-          var futureDate = new Date(rt);
-          var r = fiberRadiationAt(rt);
-          var luxMultiplier = safePositive(calibration.fiberLuxMultiplier, DEFAULT_FIBER_LUX_MULTIPLIER);
-          var ppfdMultiplier = safePositive(calibration.fiberPpfdMultiplier, DEFAULT_FIBER_PPFD_MULTIPLIER);
-          var predictedLux = Math.max(0, r * 120 * fiberEfficiency * luxMultiplier + calibration.fiberLuxOffset);
-          var ppfd = Math.round(predictedLux) > 0 && r > 0 ? Math.max(0, r * 1.96 * fiberEfficiency * ppfdMultiplier + calibration.fiberPpfdOffset) : 0;
-          remainingFiberDli += ppfd * dtSec / 1000000;
-        }
-
-        var liveLuxMultiplier = safePositive(calibration.fiberLuxMultiplier, DEFAULT_FIBER_LUX_MULTIPLIER);
-        var liveFiberLux = Math.max(0, currentFiberRadiation() * 120 * fiberEfficiency * liveLuxMultiplier + calibration.fiberLuxOffset);
-
-        var dailyLuxSum = 0;
-        var dailyPpfdSum = 0;
-        var dailySampleCount = 0;
-        lightLabels = [];
-        luxSeries = [];
-        ppfdSeries = [];
-        for (var lt = start.getTime(); lt <= now.getTime(); lt += dtMs) {
-          var ld = new Date(lt);
-          var lr = fiberRadiationAt(lt);
-          var dailyLuxMultiplier = safePositive(calibration.fiberLuxMultiplier, DEFAULT_FIBER_LUX_MULTIPLIER);
-          var dailyPpfdMultiplier = safePositive(calibration.fiberPpfdMultiplier, DEFAULT_FIBER_PPFD_MULTIPLIER);
-          var dailyLux = Math.max(0, lr * 120 * fiberEfficiency * dailyLuxMultiplier + calibration.fiberLuxOffset);
-          var dailyPpfd = Math.round(dailyLux) > 0 && lr > 0 ? Math.max(0, lr * 1.96 * fiberEfficiency * dailyPpfdMultiplier + calibration.fiberPpfdOffset) : 0;
-          dailyLuxSum += dailyLux;
-          dailyPpfdSum += dailyPpfd;
-          dailySampleCount += 1;
-          if (ld.getMinutes() === 0 || lt + dtMs > now.getTime()) {
-            lightLabels.push(ld.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
-            luxSeries.push(Number(dailyLux.toFixed(0)));
-            ppfdSeries.push(Number(dailyPpfd.toFixed(0)));
-          }
-        }
-        luxSum = dailyLuxSum;
-        ppfdSum = dailyPpfdSum;
-        sampleCount = dailySampleCount;
-
-        var liveHybridFraction = 0;
-        var liveHybridLedOn = false;
-        var liveFullLedOn = false;
-
-        if (hybridDli < TARGET_DLI && isWithinWindow(now, HYBRID_ON_HOUR, HYBRID_OFF_HOUR)) {
-          liveHybridFraction = luxSetpoint > 0 ? clamp((luxSetpoint - liveFiberLux) / luxSetpoint, 0, 1) : 0;
-          liveHybridLedOn = liveHybridFraction > 0;
-        }
-
-        if (fullDli < TARGET_DLI && isWithinWindow(now, fullLedOnHourValue, fullLedOffHourValue) && fullLedBrightnessValue > 0) {
-          liveFullLedOn = true;
-        }
-
-        return {
-          fiberDli: fiberDli,
-          averageFiberLux: sampleCount > 0 ? luxSum / sampleCount : 0,
-          averageFiberPpfd: sampleCount > 0 ? ppfdSum / sampleCount : 0,
-          hybridDli: hybridDli,
-          fullDli: fullDli,
-          hybridLedDli: hybridLedDli,
-          fullLedDli: fullLedDli,
-          hybridKwh: hybridLedDli * ledKwhPerDli,
-          fullKwh: fullLedDli * ledKwhPerDli,
-          remainingFiberDli: remainingFiberDli,
-          dliStillNeeded: Math.max(0, TARGET_DLI - hybridDli),
-          currentHybridFraction: liveHybridFraction,
-          hybridLedOn: liveHybridLedOn,
-          fullLedOn: liveFullLedOn,
-          chart: { labels: labels, fiberSeries: fiberSeries, hybridSeries: hybridSeries, fullSeries: fullSeries },
-          lightChart: { labels: lightLabels, luxSeries: luxSeries, ppfdSeries: ppfdSeries }
-        };
-      }
-
-      function renderChart(sim) {
-        if (!window.Chart) { setText("chartNotice", "Chart library unavailable. Numeric readings are still active."); return; }
-        var ctx = el("dliChart");
-        if (!ctx) return;
-        if (chart) chart.destroy();
-        chart = new Chart(ctx, {
-          type: "line",
-          data: {
-            labels: sim.chart.labels,
-            datasets: [
-              { label: "Fiber Light Rate", data: sim.chart.fiberSeries, borderWidth: 2, tension: 0.25 },
-              { label: "Hybrid LED Rate", data: sim.chart.hybridSeries, borderWidth: 3, tension: 0.25 },
-              { label: "Full LED Rate", data: sim.chart.fullSeries, borderWidth: 2, tension: 0.25 }
-            ]
-          },
-          options: {
-            responsive: true,
-            plugins: { legend: { labels: { color: "#e5e7eb" } } },
-            scales: {
-              x: { ticks: { color: "#94a3b8" }, grid: { color: "rgba(255,255,255,0.05)" } },
-              y: { ticks: { color: "#94a3b8" }, grid: { color: "rgba(255,255,255,0.05)" }, beginAtZero: true, title: { display: true, text: "mol/m2/hour", color: "#94a3b8" } }
-            }
-          }
-        });
-      }
-
-      function renderLightChart(sim) {
-        if (!window.Chart) { setText("lightChartNotice", "Chart library unavailable. Numeric readings are still active."); return; }
-        var ctx = el("lightChart");
-        if (!ctx || !sim.lightChart || !sim.lightChart.labels || sim.lightChart.labels.length === 0) return;
-
-        var chartData = {
-          labels: sim.lightChart.labels,
+    function updateDashboardChart(fiberDLI, ledDLI, targetDLI) {
+      const ctx = document.getElementById('dashboardChart').getContext('2d');
+      if (dashboardChart) dashboardChart.destroy();
+      dashboardChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: ['Today'],
           datasets: [
-            { label: "Fiber Lux", data: sim.lightChart.luxSeries, borderWidth: 2, tension: 0.25, yAxisID: "y" },
-            { label: "Fiber PPFD", data: sim.lightChart.ppfdSeries, borderWidth: 2, tension: 0.25, yAxisID: "y1" }
+            { label: 'Fiber Light DLI', data: [fiberDLI] },
+            { label: 'LED-Supplied DLI', data: [ledDLI] },
+            { label: 'Target DLI', data: [targetDLI] }
           ]
-        };
-
-        if (lightChart) {
-          lightChart.data = chartData;
-          lightChart.update();
-          return;
+        },
+        options: {
+          responsive: true,
+          scales: { y: { beginAtZero: true } },
+          plugins: { legend: { position: 'bottom' } }
         }
+      });
+    }
 
-        lightChart = new Chart(ctx, {
-          type: "line",
-          data: chartData,
-          options: {
-            responsive: true,
-            maintainAspectRatio: true,
-            interaction: { mode: "index", intersect: false },
-            plugins: { legend: { labels: { color: "#e5e7eb" } } },
-            scales: {
-              x: { ticks: { color: "#94a3b8", maxRotation: 0, autoSkip: true }, grid: { color: "rgba(255,255,255,0.05)" } },
-              y: { type: "linear", position: "left", ticks: { color: "#94a3b8" }, grid: { color: "rgba(255,255,255,0.05)" }, beginAtZero: true, title: { display: true, text: "Lux", color: "#94a3b8" } },
-              y1: { type: "linear", position: "right", ticks: { color: "#94a3b8" }, grid: { drawOnChartArea: false }, beginAtZero: true, title: { display: true, text: "PPFD", color: "#94a3b8" } }
-            }
-          }
-        });
+    function showSelectedHistory() {
+      const selectedDate = document.getElementById('historyDate').value;
+      const row = historyData.find(r => r.date === selectedDate);
+
+      if (!row) {
+        document.getElementById('hDate').textContent = selectedDate + ' not found';
+        ['hDLI', 'hLED', 'hLux', 'hKWh', 'hPPFD'].forEach(id => document.getElementById(id).textContent = '-');
+        return;
       }
 
-      function renderAll() {
-        updateLiveLightCards();
-        if (!lightData) return;
-        var sim = simulateToday();
-        if (!sim) return;
-        setText("dliHybrid", fmt(sim.hybridDli, 2));
-        setText("dliFull", fmt(sim.fullDli, 2));
-        setText("kwhHybrid", fmt(sim.hybridKwh, 3));
-        setText("kwhFull", fmt(sim.fullKwh, 3));
-        setText("kwhFullMain", fmt(sim.fullKwh, 3));
-        setText("hybridLedDli", fmt(sim.hybridLedDli, 2));
-        setText("fullLedDli", fmt(sim.fullLedDli, 2));
-        setText("fiberRemaining", fmt(sim.remainingFiberDli, 2));
-        setText("dliNeeded", fmt(sim.dliStillNeeded, 2));
-        setText("avgFiberLux", fmt(sim.averageFiberLux, 0));
-        setText("avgFiberPpfd", fmt(sim.averageFiberPpfd, 0));
-        setText("hybridPwm", String(Math.round(sim.currentHybridFraction * 255)));
-        setText("hybridLedStatus", sim.hybridLedOn ? "ON" : "OFF");
-        setText("fullLedStatus", sim.fullLedOn ? "ON" : "OFF");
-        el("hybridLedStatus").className = sim.hybridLedOn ? "good" : "bad";
-        el("fullLedStatus").className = sim.fullLedOn ? "good" : "bad";
-        var hp = clamp(sim.hybridDli / TARGET_DLI * 100, 0, 100);
-        var fp = clamp(sim.fullDli / TARGET_DLI * 100, 0, 100);
-        el("hybridBar").style.width = hp + "%";
-        el("fullBar").style.width = fp + "%";
-        setText("hybridStatus", fmt(hp, 1) + "% of target. Fiber DLI accumulated today: " + fmt(sim.fiberDli, 2) + ". Graph shows Fiber Rate, Hybrid LED Rate only, and Full LED Rate separately.");
-        setText("fullStatus", fmt(fp, 1) + "% of target. Manual brightness: " + fullLedBrightnessValue + " / 255. Timer: " + String(fullLedOnHourValue).padStart(2, "0") + ":00 to " + String(fullLedOffHourValue).padStart(2, "0") + ":00.");
-        updateWaterAndPH();
-        renderChart(sim);
-        renderLightChart(sim);
-      }
+      document.getElementById('hDate').textContent = row.date;
+      document.getElementById('hDLI').textContent = fmt(row.dli, 3);
+      document.getElementById('hLED').textContent = fmt(row.led, 3);
+      document.getElementById('hLux').textContent = fmt(row.lux, 0);
+      document.getElementById('hKWh').textContent = fmt(row.kwh, 6);
+      document.getElementById('hPPFD').textContent = fmt(row.ppfd, 2);
+    }
 
-      function bindEvents() {
-        el("dashboardBtn").addEventListener("click", function () { showPage("dashboardPage"); });
-        el("calibrationBtn").addEventListener("click", function () { showPage("calibrationPage"); });
-        el("returnDashboardBtn").addEventListener("click", function () { showPage("dashboardPage"); });
-        el("saveFullLedBtn").addEventListener("click", saveFullLedControls);
-        el("fullLedBrightnessControl").addEventListener("input", updateFullLedControlText);
-        el("saveCalibrationBtn").addEventListener("click", saveCalibration);
-        el("resetCalibrationBtn").addEventListener("click", resetCalibration);
-        el("efficiencyBtn").addEventListener("click", function () { el("efficiencyCalibrationBox").classList.toggle("hidden"); });
-      }
+    function populateHistoryTable() {
+      const tbody = document.getElementById('historyTable');
+      tbody.innerHTML = '';
+      historyData.forEach(row => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${row.date}</td>
+          <td>${fmt(row.dli, 3)}</td>
+          <td>${fmt(row.led, 3)}</td>
+          <td>${fmt(row.lux, 0)}</td>
+          <td>${fmt(row.kwh, 6)}</td>
+          <td>${fmt(row.ppfd, 2)}</td>
+          <td>${row.mode}</td>
+          <td>${row.remarks}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
 
-      function boot() {
-        try {
-          bindEvents();
-          loadCalibration();
-          loadFullLedControls();
-          updateClock();
-          updateWaterAndPH();
-          setPill("Starting light update", "warn");
-          setInterval(updateClock, 1000);
-          setInterval(updateWaterAndPH, 1000);
-          fetchLightData(true);
-          setInterval(function () { fetchLightData(false); }, 30000);
-          setInterval(renderAll, 10000);
-        } catch (err) {
-          setPill("Dashboard startup error", "bad");
-          setText("lastUpdate", "Dashboard startup error. Open the browser console to see the exact message.");
-          console.error(err);
+    function drawHistoryChart() {
+      const ctx = document.getElementById('historyChart').getContext('2d');
+      if (historyChart) historyChart.destroy();
+      historyChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: historyData.map(r => r.date),
+          datasets: [
+            { label: 'Fiber DLI', data: historyData.map(r => r.dli), tension: 0.25 },
+            { label: 'LED-Supplied DLI', data: historyData.map(r => r.led), tension: 0.25 },
+            { label: 'LED Energy, kWh', data: historyData.map(r => r.kwh), tension: 0.25, yAxisID: 'y1' }
+          ]
+        },
+        options: {
+          responsive: true,
+          interaction: { mode: 'index', intersect: false },
+          scales: {
+            y: { beginAtZero: true, title: { display: true, text: 'DLI' } },
+            y1: { beginAtZero: true, position: 'right', title: { display: true, text: 'kWh' }, grid: { drawOnChartArea: false } }
+          },
+          plugins: { legend: { position: 'bottom' } }
         }
-      }
+      });
+    }
 
-      boot();
+    function downloadHistoryCSV() {
+      const header = ['Date', 'DLI_mol_m2_day', 'LED_Supplied_DLI', 'Ave_Lux', 'LED_Energy_kWh', 'PPFD', 'Hybrid_LED_Mode', 'Remarks'];
+      const lines = [header.join(',')];
+      historyData.forEach(r => {
+        lines.push([
+          r.date,
+          r.dli,
+          r.led,
+          r.lux,
+          r.kwh,
+          r.ppfd,
+          '"' + r.mode + '"',
+          '"' + r.remarks + '"'
+        ].join(','));
+      });
+      const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'hybrid_hydroponics_history_no_solar_irradiance.csv';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    // Required ESP32 endpoints for this website:
+    // GET /data returns JSON:
+    // {
+    //   "fiberDLI":4.079592,
+    //   "aveLux":712.34,
+    //   "avePPFD":47.22,
+    //   "ledSuppliedDLI":18,
+    //   "targetDLI":18,
+    //   "hybridMode":"full",
+    //   "hybridBrightness":100
+    // }
+    //
+    // GET /save_calibration?dliCal=1.735997&luxCal=1.535223&ppfdCal=1.523145&luxToPPFD=0.06628472&targetDLI=18
+    // GET /calibration returns saved calibration JSON
+    // GET /set_hybrid_mode?mode=auto | manual | full
+    // GET /set_hybrid_brightness?value=0-100
+    // GET /save_override_reason?reason=text
+
+    window.addEventListener('load', () => {
+      computeCalibration();
+      populateHistoryTable();
+      drawHistoryChart();
+      showSelectedHistory();
+      fetchLiveData();
+      setInterval(fetchLiveData, 5000);
     });
   </script>
 </body>
